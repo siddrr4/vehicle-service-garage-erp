@@ -16,13 +16,10 @@ const connectDB = async () => {
   }
 
   if (!cachedPromise) {
-    const opts = {
-      bufferCommands: false,
-    };
-    cachedPromise = mongoose.connect(process.env.MONGO_URI, opts)
-      .then((mongooseInstance) => {
-        console.log(`MongoDB Connected: ${mongooseInstance.connection.host}`);
-        return mongooseInstance.connection;
+    cachedPromise = mongoose.connect(process.env.MONGO_URI)
+      .then((conn) => {
+        console.log(`MongoDB Connected: ${conn.connection.host}`);
+        return conn.connection;
       })
       .catch((error) => {
         cachedPromise = null;

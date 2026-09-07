@@ -42,6 +42,9 @@ if (!process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_KEY_SECRET === 'dum
   console.log('Razorpay Key Secret configuration: DETECTED');
 }
 
+// Connect to database
+connectDB();
+
 const app = express();
 
 // Middleware
