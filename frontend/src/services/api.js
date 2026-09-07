@@ -1,7 +1,11 @@
 import axios from 'axios';
 
+// Dynamically resolve base API URL for local development and Vercel cloud deployment
+const rawBaseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const baseURL = rawBaseURL.endsWith('/api') ? rawBaseURL : `${rawBaseURL.replace(/\/$/, '')}/api`;
+
 const api = axios.create({
-  baseURL: 'http://localhost:5000/api', // Pointing to our backend
+  baseURL,
 });
 
 // Interceptor to attach JWT token to requests automatically
