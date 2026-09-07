@@ -42,14 +42,21 @@ if (!process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_KEY_SECRET === 'dum
   console.log('Razorpay Key Secret configuration: DETECTED');
 }
 
-// Connect to database
-connectDB();
-
 const app = express();
 
 // Middleware
 app.use(cors());
 app.use(express.json()); // Allows parsing JSON body
+
+// Pre-flight database connection middleware for serverless invocations
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -75,8 +82,11 @@ app.get('/', (req, res) => {
 app.use(notFound);
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 5000;
+if (process.env.VERCEL !== '1') {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => {
+    console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+  });
+}
 
-app.listen(PORT, () => {
-  console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
-});
+export default app;
