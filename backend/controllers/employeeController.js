@@ -2,6 +2,7 @@ import Employee from '../models/Employee.js';
 import User from '../models/User.js';
 import Attendance from '../models/Attendance.js';
 import JobCard from '../models/JobCard.js';
+import { getIndiaDateStr } from '../utils/dateUtils.js';
 
 // @desc    Get all employees with search, filter, and pagination
 // @route   GET /api/employees
@@ -66,12 +67,8 @@ export const getActiveMechanics = async (req, res) => {
       status: 'Active',
     }).sort({ fullName: 1 }).lean();
 
-    // Get today's attendance
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    const todayStr = `${year}-${month}-${day}`;
+    // Get today's attendance in IST
+    const todayStr = getIndiaDateStr();
 
     const mechanicIds = allMechanics.map((m) => m._id);
     const todayAttendance = await Attendance.find({

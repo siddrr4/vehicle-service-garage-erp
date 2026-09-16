@@ -39,9 +39,17 @@ const vehicleSchema = new mongoose.Schema({
     type: Date,
     required: [true, 'Registration date is required']
   },
+  insuranceProvider: {
+    type: String,
+    trim: true,
+  },
   insuranceNumber: {
     type: String,
-    maxLength: [20, 'Insurance number cannot exceed 20 characters']
+    maxLength: [50, 'Insurance number cannot exceed 50 characters'],
+    trim: true,
+  },
+  insuranceStartDate: {
+    type: Date,
   },
   insuranceExpiryDate: {
     type: Date

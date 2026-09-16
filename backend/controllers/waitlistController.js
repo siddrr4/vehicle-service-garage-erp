@@ -1,13 +1,15 @@
 import WaitingQueue from '../models/WaitingQueue.js';
 import Appointment from '../models/Appointment.js';
 import { createJobCardForAppointment } from './jobCardController.js';
-
-const getFormattedDateStr = (d = new Date()) => {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
+import {
+  getIndiaDateStr,
+  getIndiaStartOfDay,
+  getIndiaEndOfDay,
+} from '../utils/dateUtils.js';
+import {
+  notifyCustomer,
+  notifyAdminsAndAdvisors,
+} from '../services/notificationService.js';
 
 // @desc    Add a customer to the waiting queue
 // @route   POST /api/waitlist
@@ -30,6 +32,15 @@ export const addToWaitlist = async (req, res) => {
     });
 
     const created = await waitlistEntry.save();
+
+    await notifyAdminsAndAdvisors({
+      type: 'WAITING_QUEUE',
+      title: 'New walk-in customer added to waiting queue',
+      message: `Walk-in queue ticket ${created.queueNumber} created for ${created.serviceType}.`,
+      relatedEntityType: 'WaitingQueue',
+      relatedEntityId: created._id,
+    });
+
     res.status(201).json(created);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -41,11 +52,9 @@ export const addToWaitlist = async (req, res) => {
 // @access  Private
 export const getTodayWaitlist = async (req, res) => {
   try {
-    const todayStr = getFormattedDateStr();
-    const [year, month, day] = todayStr.split('-').map(Number);
-    
-    const startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
-    const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
+    const todayStr = getIndiaDateStr();
+    const startOfDay = getIndiaStartOfDay(todayStr);
+    const endOfDay = getIndiaEndOfDay(todayStr);
 
     const waitlist = await WaitingQueue.find({
       arrivalTime: { $gte: startOfDay, $lte: endOfDay },
@@ -127,6 +136,22 @@ export const assignWaitlist = async (req, res) => {
     entry.assignedMechanic = assignedMechanic;
     entry.appointmentRef = savedAppointment._id;
     await entry.save();
+
+    await notifyCustomer(entry.customer, {
+      type: 'WAITING_QUEUE',
+      title: 'Waiting queue slot assigned',
+      message: `Your walk-in service ticket ${entry.queueNumber} has been assigned to slot ${assignedSlot}.`,
+      relatedEntityType: 'WaitingQueue',
+      relatedEntityId: entry._id,
+    });
+
+    await notifyAdminsAndAdvisors({
+      type: 'WAITING_QUEUE',
+      title: 'Queue slot assigned',
+      message: `Queue ticket ${entry.queueNumber} assigned to slot ${assignedSlot}.`,
+      relatedEntityType: 'WaitingQueue',
+      relatedEntityId: entry._id,
+    });
 
     res.json({ waitlist: entry, appointment: savedAppointment, jobCard: jobCardCreated });
   } catch (error) {

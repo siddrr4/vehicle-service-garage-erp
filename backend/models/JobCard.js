@@ -49,7 +49,7 @@ const jobCardSchema = new mongoose.Schema({
   },
   priority: {
     type: String,
-    enum: ['Low', 'Medium', 'High'],
+    enum: ['Low', 'Medium', 'High', 'Urgent'],
     default: 'Medium'
   },
   status: {
@@ -100,6 +100,32 @@ const jobCardSchema = new mongoose.Schema({
     recommendationText: { type: String },
     recommendedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     recommendedAt: { type: Date }
+  },
+  additionalRecommendations: [{
+    serviceName: { type: String, required: true },
+    reason: { type: String, required: true },
+    estimatedLabour: { type: Number, default: 0 },
+    estimatedParts: { type: Number, default: 0 },
+    estimatedTotal: { type: Number, default: 0 },
+    status: {
+      type: String,
+      enum: ['Pending Customer Approval', 'Approved', 'Rejected'],
+      default: 'Pending Customer Approval'
+    },
+    recommendedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    createdAt: { type: Date, default: Date.now },
+    customerActionAt: { type: Date }
+  }],
+  inspectionDetails: {
+    engineOil: { type: String, default: 'Good' },
+    brakes: { type: String, default: 'Good' },
+    tyres: { type: String, default: 'Good' },
+    battery: { type: String, default: 'Healthy' },
+    lights: { type: String, default: 'All Working' },
+    exteriorCondition: { type: String, default: 'Clean / Minor Scratches' },
+    fuelLevel: { type: String, default: '50%' },
+    odometerReading: { type: Number },
+    remarks: { type: String }
   },
   odometerAtService: {
     type: Number

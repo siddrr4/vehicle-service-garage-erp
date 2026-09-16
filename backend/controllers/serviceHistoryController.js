@@ -1,6 +1,7 @@
 import ServiceHistory from '../models/ServiceHistory.js';
 import Vehicle from '../models/Vehicle.js';
 import mongoose from 'mongoose';
+import { getIndiaStartOfDay, getIndiaEndOfDay } from '../utils/dateUtils.js';
 
 // @desc    Get all service history (with filters & pagination)
 // @route   GET /api/service-history
@@ -18,8 +19,8 @@ export const getServiceHistory = async (req, res) => {
     if (req.query.vehicle) filterQuery.vehicle = req.query.vehicle;
     if (req.query.startDate && req.query.endDate) {
       filterQuery.serviceDate = {
-        $gte: new Date(req.query.startDate),
-        $lte: new Date(req.query.endDate)
+        $gte: getIndiaStartOfDay(req.query.startDate),
+        $lte: getIndiaEndOfDay(req.query.endDate)
       };
     }
 

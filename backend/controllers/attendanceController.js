@@ -1,14 +1,13 @@
 import Attendance from '../models/Attendance.js';
 import Employee from '../models/Employee.js';
 import JobCard from '../models/JobCard.js';
-
-// Helper to get formatted YYYY-MM-DD string
-const getFormattedDate = (d = new Date()) => {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
+import Vehicle from '../models/Vehicle.js';
+import {
+  getIndiaDateStr,
+  getIndiaCurrentTimeParts,
+  formatWorkingHours,
+  getAttendanceStatusIST,
+} from '../utils/dateUtils.js';
 
 // Helper to find Employee record linked to logged-in user
 const getEmployeeForUser = async (user) => {
@@ -16,38 +15,6 @@ const getEmployeeForUser = async (user) => {
   return await Employee.findOne({
     $or: [{ userRef: user._id }, { email: user.email.toLowerCase() }],
   });
-};
-
-// Helper to format working hours string
-const formatWorkingHours = (checkIn, checkOut) => {
-  const diffMs = new Date(checkOut).getTime() - new Date(checkIn).getTime();
-  const totalMinutes = Math.floor(Math.max(0, diffMs / (1000 * 60)));
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (minutes === 0) {
-    return `${hours}h`;
-  }
-  return `${hours}h ${minutes}m`;
-};
-
-// Helper to determine status from working hours and check-in time
-const getAttendanceStatus = (checkInTime, checkOutTime) => {
-  const checkIn = new Date(checkInTime);
-  const checkOut = new Date(checkOutTime);
-  const diffMs = checkOut.getTime() - checkIn.getTime();
-  const diffHours = Math.max(0, diffMs / (1000 * 60 * 60));
-
-  if (diffHours < 4) {
-    return 'Early Exit';
-  } else if (diffHours < 8) {
-    return 'Half Day';
-  } else {
-    // Check if check-in was after 09:15 AM
-    const hours = checkIn.getHours();
-    const minutes = checkIn.getMinutes();
-    const isLateCheckIn = hours > 9 || (hours === 9 && minutes > 15);
-    return isLateCheckIn ? 'Late' : 'Present';
-  }
 };
 
 // @desc    Check In for Today
@@ -69,7 +36,7 @@ export const checkIn = async (req, res) => {
       return res.status(404).json({ message: 'Employee profile not found for this account' });
     }
 
-    const todayDate = getFormattedDate();
+    const todayDate = getIndiaDateStr();
 
     // Check if record already exists for today
     let attendance = await Attendance.findOne({ employeeId: employee._id, date: todayDate });
@@ -78,15 +45,14 @@ export const checkIn = async (req, res) => {
     }
 
     const checkInTime = new Date();
-    const hours = checkInTime.getHours();
-    const minutes = checkInTime.getMinutes();
+    const { hours, minutes } = getIndiaCurrentTimeParts(checkInTime);
 
-    // Check-In allowed from 08:30 AM onwards
+    // Check-In allowed from 08:30 AM onwards in IST
     if (hours < 8 || (hours === 8 && minutes < 30)) {
       return res.status(400).json({ message: 'Check-in is only allowed from 08:30 AM onwards' });
     }
 
-    // Late if check-in is after 09:15 AM
+    // Late if check-in is after 09:15 AM in IST
     const isLate = hours > 9 || (hours === 9 && minutes > 15);
     const status = isLate ? 'Late' : 'Present';
 
@@ -130,7 +96,7 @@ export const checkOut = async (req, res) => {
       return res.status(404).json({ message: 'Employee profile not found for this account' });
     }
 
-    const todayDate = getFormattedDate();
+    const todayDate = getIndiaDateStr();
     const attendance = await Attendance.findOne({ employeeId: employee._id, date: todayDate });
 
     if (!attendance || !attendance.checkIn) {
@@ -147,8 +113,8 @@ export const checkOut = async (req, res) => {
     // Automatically calculate working hours formatted string
     attendance.workingHours = formatWorkingHours(attendance.checkIn, checkOutTime);
 
-    // Automatically determine attendance status
-    const calculatedStatus = getAttendanceStatus(attendance.checkIn, checkOutTime);
+    // Automatically determine attendance status using IST
+    const calculatedStatus = getAttendanceStatusIST(attendance.checkIn, checkOutTime);
     attendance.status = calculatedStatus;
     attendance.attendanceStatus = calculatedStatus;
 
@@ -173,7 +139,7 @@ export const getTodayAttendance = async (req, res) => {
       return res.status(404).json({ message: 'Employee profile not found' });
     }
 
-    const todayDate = getFormattedDate();
+    const todayDate = getIndiaDateStr();
     const attendance = await Attendance.findOne({ employeeId: employee._id, date: todayDate });
 
     res.json({
@@ -212,7 +178,7 @@ export const getMechanicAttendanceHistory = async (req, res) => {
 // @access  Private (Admin/Advisor)
 export const getAdminAttendanceSummary = async (req, res) => {
   try {
-    const targetDate = req.query.date || getFormattedDate();
+    const targetDate = req.query.date || getIndiaDateStr();
 
     // Total active mechanics & employees
     const allEmployees = await Employee.find({ status: 'Active' }).sort({ fullName: 1 });
@@ -229,11 +195,16 @@ export const getAdminAttendanceSummary = async (req, res) => {
       }
     });
 
+    const todayDate = getIndiaDateStr();
+    const isFutureDate = targetDate > todayDate;
+
     let presentCount = 0;
     let lateCount = 0;
     let halfDayCount = 0;
     let earlyExitCount = 0;
     let absentCount = 0;
+    let leaveCount = 0;
+    let unprocessedCount = 0;
     let currentlyAvailableCount = 0;
 
     const fullAttendanceList = allEmployees.map((emp) => {
@@ -246,11 +217,15 @@ export const getAdminAttendanceSummary = async (req, res) => {
           halfDayCount++;
         } else if (currentStatus === 'Early Exit') {
           earlyExitCount++;
+        } else if (currentStatus === 'Leave') {
+          leaveCount++;
+        } else if (currentStatus === 'Absent') {
+          absentCount++;
         } else {
           presentCount++;
         }
         
-        if (rec.checkIn && !rec.checkOut) {
+        if (rec.checkIn && !rec.checkOut && targetDate === todayDate) {
           currentlyAvailableCount++;
         }
         
@@ -262,32 +237,158 @@ export const getAdminAttendanceSummary = async (req, res) => {
           status: currentStatus,
           attendanceStatus: currentStatus,
           date: targetDate,
+          isExplicit: true,
+          remarks: rec.remarks || '',
         };
-      } else {
-        absentCount++;
+      } else if (isFutureDate) {
+        // Future dates should not be marked absent
+        unprocessedCount++;
         return {
           employee: emp,
           checkIn: null,
           checkOut: null,
-          workingHours: '',
-          status: 'Absent',
-          attendanceStatus: 'Absent',
+          workingHours: null,
+          status: 'Upcoming',
+          attendanceStatus: 'Upcoming',
           date: targetDate,
+          isExplicit: false,
+          remarks: 'Future date - unprocessed',
+        };
+      } else {
+        // Business Rule: Past dates up to today without explicit record are treated as Present by default
+        presentCount++;
+        return {
+          employee: emp,
+          checkIn: null,
+          checkOut: null,
+          workingHours: null,
+          status: 'Present (Default)',
+          attendanceStatus: 'Present (Default)',
+          date: targetDate,
+          isExplicit: false,
+          isDefault: true,
+          remarks: 'Present (Default)',
         };
       }
     });
 
     res.json({
       date: targetDate,
+      isFutureDate,
       totalEmployees: allEmployees.length,
       presentEmployees: presentCount,
       lateEmployees: lateCount,
       halfDayEmployees: halfDayCount,
       earlyExitEmployees: earlyExitCount,
       absentEmployees: absentCount,
+      leaveEmployees: leaveCount,
+      unprocessedEmployees: unprocessedCount,
       lateArrivals: lateCount, // backwards compatibility
       currentlyAvailable: currentlyAvailableCount,
       attendanceList: fullAttendanceList,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Explicitly Record or Update Attendance for an Employee (Admin/Advisor)
+// @route   POST /api/attendance/mark
+// @access  Private (Admin/Advisor)
+export const markAttendance = async (req, res) => {
+  try {
+    const { employeeId, date, status, remarks } = req.body;
+
+    if (!employeeId || !date || !status) {
+      return res.status(400).json({ message: 'Employee ID, date, and status are required' });
+    }
+
+    const todayDate = getIndiaDateStr();
+    if (date > todayDate) {
+      return res.status(400).json({ message: 'Attendance cannot be marked for future dates' });
+    }
+
+    const validStatuses = ['Present', 'Absent', 'Leave', 'Half Day', 'Late', 'Early Exit'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ message: `Status must be one of: ${validStatuses.join(', ')}` });
+    }
+
+    const employee = await Employee.findById(employeeId);
+    if (!employee) {
+      return res.status(404).json({ message: 'Employee not found' });
+    }
+
+    let attendance = await Attendance.findOne({ employeeId, date });
+
+    let checkIn = null;
+    let checkOut = null;
+    let workingHours = '';
+
+    const isToday = (date === todayDate);
+
+    if (status === 'Present') {
+      checkIn = attendance?.checkIn || new Date(`${date}T09:00:00+05:30`);
+      // If marking for today, checkOut should be null (they are currently on shift)
+      checkOut = isToday ? null : (attendance?.checkOut || new Date(`${date}T17:30:00+05:30`));
+      workingHours = isToday ? 'In Progress' : (attendance?.workingHours || '8h 30m');
+    } else if (status === 'Half Day') {
+      checkIn = attendance?.checkIn || new Date(`${date}T09:00:00+05:30`);
+      checkOut = isToday ? null : new Date(`${date}T13:00:00+05:30`);
+      workingHours = isToday ? 'In Progress' : '4h 0m';
+    } else if (status === 'Late') {
+      checkIn = attendance?.checkIn || new Date(`${date}T09:45:00+05:30`);
+      checkOut = isToday ? null : (attendance?.checkOut || new Date(`${date}T17:30:00+05:30`));
+      workingHours = isToday ? 'In Progress' : '7h 45m';
+    } else {
+      // Absent or Leave
+      checkIn = null;
+      checkOut = null;
+      workingHours = '';
+    }
+
+    if (attendance) {
+      attendance.status = status;
+      attendance.attendanceStatus = status;
+      attendance.checkIn = checkIn;
+      attendance.checkOut = checkOut;
+      attendance.workingHours = workingHours;
+      attendance.markedBy = req.user._id;
+      attendance.markedByRole = req.user.role;
+      if (remarks !== undefined) attendance.remarks = remarks;
+      await attendance.save();
+    } else {
+      attendance = new Attendance({
+        employeeId,
+        date,
+        checkIn,
+        checkOut,
+        workingHours,
+        status,
+        attendanceStatus: status,
+        markedBy: req.user._id,
+        markedByRole: req.user.role,
+        remarks: remarks || '',
+      });
+      await attendance.save();
+    }
+
+    // Update availability if marked for today
+    if (date === todayDate) {
+      if (status === 'Absent' || status === 'Leave') {
+        employee.availability = 'Leave';
+      } else if (status === 'Present' || status === 'Late' || status === 'Half Day') {
+        const activeJc = await JobCard.findOne({
+          assignedMechanic: employee._id,
+          status: { $in: ['Open', 'In Progress', 'Assigned', 'Waiting for Parts'] }
+        });
+        employee.availability = activeJc ? 'Busy' : 'Available';
+      }
+      await employee.save();
+    }
+
+    res.status(200).json({
+      message: `Attendance marked as ${status} successfully for ${employee.fullName} on ${date}`,
+      attendance,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -299,7 +400,7 @@ export const getAdminAttendanceSummary = async (req, res) => {
 // @access  Private (Admin/Advisor)
 export const getTodayMechanicAvailability = async (req, res) => {
   try {
-    const todayDate = getFormattedDate();
+    const todayDate = getIndiaDateStr();
     
     // Find all active mechanic employees
     const mechanics = await Employee.find({ role: 'Mechanic', status: 'Active' }).sort({ fullName: 1 });
@@ -318,13 +419,15 @@ export const getTodayMechanicAvailability = async (req, res) => {
 
     // Active Job Cards assigned to mechanics
     const activeJobCards = await JobCard.find({
-      status: { $in: ['Open', 'In Progress', 'Waiting for Parts'] },
+      status: { $in: ['Open', 'In Progress', 'Waiting for Parts', 'Assigned'] },
       assignedMechanic: { $in: mechanicIds }
     }).populate('vehicle', 'vehicleNumber brand model');
 
     const jobCardMap = new Map();
     activeJobCards.forEach(jc => {
-      jobCardMap.set(jc.assignedMechanic.toString(), jc);
+      if (jc.assignedMechanic) {
+        jobCardMap.set(jc.assignedMechanic.toString(), jc);
+      }
     });
 
     let totalMechanics = mechanics.length;
@@ -341,9 +444,12 @@ export const getTodayMechanicAvailability = async (req, res) => {
       let status = 'Not Checked In / Absent';
       let checkInTime = null;
 
-      if (att && att.checkIn && !att.checkOut) {
+      const isPresentToday = att && (att.status === 'Present' || att.status === 'Late' || att.status === 'Half Day');
+      const isCheckedIn = att && att.checkIn && !att.checkOut && att.status !== 'Leave' && att.status !== 'Absent';
+
+      if (isCheckedIn || (isPresentToday && !att?.checkOut)) {
         checkedIn++;
-        checkInTime = att.checkIn;
+        checkInTime = att?.checkIn || new Date(`${todayDate}T09:00:00+05:30`);
         if (activeJc) {
           status = 'Busy';
           busy++;
@@ -353,6 +459,7 @@ export const getTodayMechanicAvailability = async (req, res) => {
         }
       } else if (att && att.checkOut) {
         status = 'Checked Out';
+        notCheckedIn++;
       } else if (att && (att.status === 'Leave' || att.remarks?.toLowerCase().includes('leave'))) {
         status = 'On Approved Leave';
         onLeave++;

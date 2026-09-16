@@ -6,19 +6,18 @@ import Vehicle from '../models/Vehicle.js';
 import SparePart from '../models/SparePart.js';
 import Employee from '../models/Employee.js';
 import ServiceHistory from '../models/ServiceHistory.js';
+import { getIndiaStartOfDay, getIndiaEndOfDay } from '../utils/dateUtils.js';
 
 // Helper for date filtering across models
 const getDateFilter = (req, dateField = 'createdAt') => {
   const { startDate, endDate } = req.query;
   const filter = {};
   if (startDate && endDate) {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    const start = getIndiaStartOfDay(startDate);
+    const end = getIndiaEndOfDay(endDate);
     
     // If valid dates
     if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
-      start.setHours(0, 0, 0, 0);
-      end.setHours(23, 59, 59, 999);
       filter[dateField] = { $gte: start, $lte: end };
     }
   }

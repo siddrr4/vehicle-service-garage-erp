@@ -13,7 +13,6 @@ const attendanceSchema = new mongoose.Schema(
     },
     checkIn: {
       type: Date,
-      required: [true, 'Check in time is required'],
     },
     checkOut: {
       type: Date,
@@ -24,12 +23,12 @@ const attendanceSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['Present', 'Absent', 'Late', 'Half Day', 'Early Exit'],
+      enum: ['Present', 'Absent', 'Late', 'Half Day', 'Early Exit', 'Leave'],
       default: 'Present',
     },
     attendanceStatus: {
       type: String,
-      enum: ['Present', 'Absent', 'Late', 'Half Day', 'Early Exit'],
+      enum: ['Present', 'Absent', 'Late', 'Half Day', 'Early Exit', 'Leave'],
       default: 'Present',
     },
     markedBy: {

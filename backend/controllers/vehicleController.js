@@ -1,5 +1,7 @@
 import Vehicle from '../models/Vehicle.js';
 import Customer from '../models/Customer.js';
+import JobCard from '../models/JobCard.js';
+import ServiceHistory from '../models/ServiceHistory.js';
 
 // @desc    Get all vehicles with search, filter, and pagination
 // @route   GET /api/vehicles
@@ -235,3 +237,71 @@ export const deleteVehicle = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// @desc    Lookup vehicle by registration number for Walk-in Service
+// @route   GET /api/vehicles/lookup/:regNumber
+// @access  Private (Advisor/Admin)
+export const lookupVehicleByRegNumber = async (req, res) => {
+  try {
+    const rawReg = req.params.regNumber || '';
+    const cleanReg = rawReg.trim().toUpperCase().replace(/\s+/g, '');
+
+    if (!cleanReg) {
+      return res.status(400).json({ message: 'Vehicle registration number is required' });
+    }
+
+    // Flexible regex allowing optional whitespace between characters (e.g. KA20EH0623 matches "KA 20 EH 0623")
+    const flexibleRegex = new RegExp(`^${cleanReg.split('').join('\\s*')}$`, 'i');
+
+    const vehicle = await Vehicle.findOne({
+      $or: [
+        { vehicleNumber: cleanReg },
+        { vehicleNumber: rawReg.trim().toUpperCase() },
+        { vehicleNumber: { $regex: flexibleRegex } }
+      ]
+    }).populate('customer', 'fullName mobileNumber emailAddress address city state pincode customerId');
+
+    if (!vehicle) {
+      return res.status(404).json({ message: 'Vehicle not found' });
+    }
+
+    // Retrieve last service information from JobCard and ServiceHistory
+    const lastJobCard = await JobCard.findOne({
+      vehicle: vehicle._id
+    }).sort({ createdAt: -1 }).select('jobNumber status createdAt servicesPerformed');
+
+    const lastServiceHistory = await ServiceHistory.findOne({
+      vehicle: vehicle._id
+    }).sort({ serviceDate: -1 }).select('serviceDate odometerReading isFreeService freeServiceNumber');
+
+    // Count completed non-cancelled services per vehicle
+    const completedServicesCount = await JobCard.countDocuments({
+      vehicle: vehicle._id,
+      status: { $in: ['Completed', 'Delivered'] }
+    });
+
+    const freeServicesEntitled = vehicle.freeServicesEntitled !== undefined ? vehicle.freeServicesEntitled : 3;
+    const freeServiceEligible = completedServicesCount < freeServicesEntitled;
+    const freeServiceNumber = freeServiceEligible ? completedServicesCount + 1 : null;
+
+    res.json({
+      vehicle,
+      customer: vehicle.customer,
+      serviceInfo: {
+        lastServiceDate: lastServiceHistory?.serviceDate || lastJobCard?.createdAt || null,
+        lastJobCardNumber: lastJobCard?.jobNumber || null,
+        lastJobCardStatus: lastJobCard?.status || null,
+        insuranceExpiryDate: vehicle.insuranceExpiryDate || null,
+        warrantyExpiryDate: vehicle.warrantyExpiryDate || null,
+        completedServicesCount,
+        freeServicesEntitled,
+        freeServicesUsed: vehicle.freeServicesUsed || completedServicesCount,
+        freeServiceEligible,
+        freeServiceNumber
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+

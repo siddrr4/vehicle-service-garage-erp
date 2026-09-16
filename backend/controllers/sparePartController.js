@@ -1,4 +1,5 @@
 import SparePart from '../models/SparePart.js';
+import { checkLowStockCondition } from '../services/notificationService.js';
 
 // @desc    Get all spare parts with search, filter, sort, and pagination
 // @route   GET /api/spare-parts
@@ -197,6 +198,7 @@ export const updateSparePart = async (req, res) => {
       }
 
       const updatedPart = await sparePart.save();
+      await checkLowStockCondition(updatedPart._id);
       res.json(updatedPart);
     } else {
       res.status(404).json({ message: 'Spare part not found' });

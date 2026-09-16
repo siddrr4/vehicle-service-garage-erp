@@ -9,6 +9,9 @@ import {
   updateMechanicJobCard,
   deleteJobCard,
   getJobCardStats,
+  createWalkInJobCard,
+  addAdditionalRecommendation,
+  respondToRecommendation,
 } from '../controllers/jobCardController.js';
 import { protect, admin, adminOrAdvisor } from '../middleware/authMiddleware.js';
 
@@ -17,6 +20,10 @@ const router = express.Router();
 router.route('/')
   .get(protect, getJobCards)
   .post(protect, adminOrAdvisor, createJobCard);
+
+// Walk-in Service Job Card creation
+router.route('/walk-in')
+  .post(protect, adminOrAdvisor, createWalkInJobCard);
 
 router.route('/stats')
   .get(protect, getJobCardStats);
@@ -29,6 +36,13 @@ router.route('/mechanic-jobs')
 
 router.route('/:id/mechanic-update')
   .put(protect, updateMechanicJobCard);
+
+// Additional service recommendations
+router.route('/:id/recommendations')
+  .post(protect, addAdditionalRecommendation);
+
+router.route('/:id/recommendations/:recId/approval')
+  .put(protect, respondToRecommendation);
 
 router.route('/:id')
   .get(protect, getJobCardById)

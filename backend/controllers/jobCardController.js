@@ -7,6 +7,14 @@ import Vehicle from '../models/Vehicle.js';
 import Invoice from '../models/Invoice.js';
 import ServiceHistory from '../models/ServiceHistory.js';
 import { autoGenerateInvoice } from './billingController.js';
+import { getIndiaDateStr } from '../utils/dateUtils.js';
+import {
+  notifyCustomer,
+  notifyMechanic,
+  notifyAdminsAndAdvisors,
+  checkLowStockCondition,
+} from '../services/notificationService.js';
+import { calculateSlotCapacity } from './appointmentController.js';
 
 // Helper to deduct parts from inventory
 const deductInventory = async (partsUsed, jobCard, performedBy) => {
@@ -23,6 +31,7 @@ const deductInventory = async (partsUsed, jobCard, performedBy) => {
         remarks: 'Job Card Parts Deduction'
       });
       await sparePart.save();
+      await checkLowStockCondition(sparePart._id);
     }
   }
 };
@@ -268,11 +277,7 @@ export const createJobCard = async (req, res) => {
     }
 
     if (assignedMechanic) {
-      const today = new Date();
-      const year = today.getFullYear();
-      const month = String(today.getMonth() + 1).padStart(2, '0');
-      const day = String(today.getDate()).padStart(2, '0');
-      const todayStr = `${year}-${month}-${day}`;
+      const todayStr = getIndiaDateStr();
 
       const attendance = await Attendance.findOne({ employeeId: assignedMechanic, date: todayStr });
       if (!attendance || !attendance.checkIn || attendance.checkOut) {
@@ -326,6 +331,13 @@ export const createJobCard = async (req, res) => {
     // If a mechanic was assigned, set availability to Busy
     if (assignedMechanic) {
       await Employee.findByIdAndUpdate(assignedMechanic, { availability: 'Busy' });
+      await notifyMechanic(assignedMechanic, {
+        type: 'JOB_CARD_CREATED',
+        title: 'New Job Card assigned',
+        message: `Job Card ${createdJobCard.jobNumber} has been assigned to you.`,
+        relatedEntityType: 'JobCard',
+        relatedEntityId: createdJobCard._id,
+      });
     }
 
     res.status(201).json(createdJobCard);
@@ -348,11 +360,7 @@ export const updateJobCard = async (req, res) => {
 
       // Delta logic for parts inventory
       if (req.body.assignedMechanic && req.body.assignedMechanic !== String(jobCard.assignedMechanic)) {
-        const today = new Date();
-        const year = today.getFullYear();
-        const month = String(today.getMonth() + 1).padStart(2, '0');
-        const day = String(today.getDate()).padStart(2, '0');
-        const todayStr = `${year}-${month}-${day}`;
+        const todayStr = getIndiaDateStr();
 
         const attendance = await Attendance.findOne({ employeeId: req.body.assignedMechanic, date: todayStr });
         if (!attendance || !attendance.checkIn || attendance.checkOut) {
@@ -556,11 +564,36 @@ export const updateJobCard = async (req, res) => {
       // Auto generate invoice if Completed
       if (updatedJobCard.status === 'Completed') {
         await autoGenerateInvoice(updatedJobCard);
+
+        if (prevStatus !== 'Completed') {
+          await notifyCustomer(updatedJobCard.customer, {
+            type: 'JOB_COMPLETED',
+            title: 'Your vehicle service is completed',
+            message: `Service for your vehicle has been completed under Job Card ${updatedJobCard.jobNumber}.`,
+            relatedEntityType: 'JobCard',
+            relatedEntityId: updatedJobCard._id,
+          });
+
+          await notifyAdminsAndAdvisors({
+            type: 'JOB_COMPLETED',
+            title: `Job Card ${updatedJobCard.jobNumber} completed`,
+            message: `Job Card ${updatedJobCard.jobNumber} has been completed. Ready for billing and delivery.`,
+            relatedEntityType: 'JobCard',
+            relatedEntityId: updatedJobCard._id,
+          });
+        }
       }
 
-      // If assigned mechanic changed, update mechanics' availability
+      // If assigned mechanic changed, update mechanics' availability & notify
       if (req.body.assignedMechanic && req.body.assignedMechanic !== String(prevMechanic)) {
         await Employee.findByIdAndUpdate(req.body.assignedMechanic, { availability: 'Busy' });
+        await notifyMechanic(req.body.assignedMechanic, {
+          type: 'MECHANIC_ASSIGNED',
+          title: 'Job Card assigned to you',
+          message: `Job Card ${updatedJobCard.jobNumber} has been assigned to you.`,
+          relatedEntityType: 'JobCard',
+          relatedEntityId: updatedJobCard._id,
+        });
       }
 
       // Sync status back to linked Appointment
@@ -766,6 +799,24 @@ export const updateMechanicJobCard = async (req, res) => {
     // Auto generate invoice if Completed
     if (updatedJobCard.status === 'Completed') {
       await autoGenerateInvoice(updatedJobCard);
+
+      if (prevStatus !== 'Completed') {
+        await notifyCustomer(updatedJobCard.customer, {
+          type: 'JOB_COMPLETED',
+          title: 'Your vehicle service is completed',
+          message: `Service for your vehicle has been completed under Job Card ${updatedJobCard.jobNumber}.`,
+          relatedEntityType: 'JobCard',
+          relatedEntityId: updatedJobCard._id,
+        });
+
+        await notifyAdminsAndAdvisors({
+          type: 'JOB_COMPLETED',
+          title: `Job Card ${updatedJobCard.jobNumber} completed`,
+          message: `Job Card ${updatedJobCard.jobNumber} has been completed by mechanic. Ready for billing & delivery.`,
+          relatedEntityType: 'JobCard',
+          relatedEntityId: updatedJobCard._id,
+        });
+      }
     }
 
     // Sync status back to linked Appointment
@@ -846,3 +897,289 @@ export const getJobCardStats = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// @desc    Create Walk-in Job Card directly with capacity check and appointment linking
+// @route   POST /api/job-cards/walk-in
+// @access  Private (Advisor/Admin)
+export const createWalkInJobCard = async (req, res) => {
+  try {
+    const {
+      customerId,
+      vehicleId,
+      services,
+      complaint,
+      inspectionDetails,
+      preferredTime,
+      assignedMechanic,
+      priority = 'Medium',
+      notes = ''
+    } = req.body;
+
+    if (!customerId || !vehicleId) {
+      return res.status(400).json({ message: 'Customer and Vehicle are required' });
+    }
+
+    const vehicle = await Vehicle.findById(vehicleId);
+    if (!vehicle) {
+      return res.status(404).json({ message: 'Vehicle not found' });
+    }
+
+    const todayStr = getIndiaDateStr();
+
+    // Verify today's real capacity if a preferredTime slot is provided
+    if (preferredTime) {
+      const capacityData = await calculateSlotCapacity(todayStr);
+      const matchedSlot = capacityData.slots.find(
+        (s) => s.time === preferredTime || s.time.startsWith(preferredTime)
+      );
+
+      if (matchedSlot && matchedSlot.available <= 0) {
+        return res.status(409).json({
+          noCapacity: true,
+          message: `No capacity available for slot ${preferredTime}. Mechanics are currently occupied.`
+        });
+      }
+    }
+
+    // Verify mechanic availability if assigned
+    if (assignedMechanic) {
+      const attendance = await Attendance.findOne({
+        employeeId: assignedMechanic,
+        date: todayStr
+      });
+
+      if (!attendance || !attendance.checkIn || attendance.checkOut || attendance.status === 'Leave' || attendance.status === 'Absent') {
+        return res.status(400).json({
+          message: 'Selected mechanic is currently unavailable or not checked in today.'
+        });
+      }
+    }
+
+    // Determine primary service name and calculate initial estimated cost
+    const serviceList = Array.isArray(services) && services.length > 0
+      ? services
+      : [{ serviceName: 'General Service', labourCharge: 500, washingCharge: 300, isFreeService: false }];
+
+    const primaryService = serviceList[0]?.serviceName || 'General Service';
+
+    let estimatedCost = 0;
+    serviceList.forEach((srv) => {
+      if (!srv.isFreeService) {
+        estimatedCost += (Number(srv.labourCharge) || 0) + (Number(srv.washingCharge) || 0);
+      }
+    });
+
+    const fullComplaint = complaint || primaryService;
+
+    // Create linked Appointment document for record & tracking
+    const appointment = new Appointment({
+      customer: customerId,
+      vehicle: vehicleId,
+      serviceType: primaryService,
+      appointmentDate: new Date(),
+      preferredTime: preferredTime || '09:00 AM - 10:00 AM',
+      problemDescription: fullComplaint,
+      serviceAdvisor: req.user._id,
+      bookingType: 'Walk-in',
+      status: 'Approved'
+    });
+    const savedAppointment = await appointment.save();
+
+    // Create Job Card
+    const jobCard = new JobCard({
+      customer: customerId,
+      vehicle: vehicleId,
+      serviceRequest: savedAppointment._id,
+      serviceType: primaryService,
+      servicesPerformed: serviceList,
+      complaint: fullComplaint,
+      inspectionDetails: inspectionDetails || {},
+      odometerAtService: inspectionDetails?.odometerReading || vehicle.currentOdometerReading,
+      priority: priority || 'Medium',
+      status: assignedMechanic ? 'Assigned' : 'Open',
+      assignedMechanic: assignedMechanic || null,
+      estimatedCost,
+      notes
+    });
+
+    const savedJobCard = await jobCard.save();
+
+    // Update vehicle's odometer reading if inspection reading is higher
+    if (inspectionDetails?.odometerReading && inspectionDetails.odometerReading > vehicle.currentOdometerReading) {
+      vehicle.currentOdometerReading = inspectionDetails.odometerReading;
+      await vehicle.save();
+    }
+
+    // Populate for response
+    await savedJobCard.populate('customer', 'fullName mobileNumber emailAddress');
+    await savedJobCard.populate('vehicle', 'vehicleNumber brand model fuelType currentOdometerReading');
+    if (assignedMechanic) {
+      await savedJobCard.populate('assignedMechanic', 'fullName employeeId specialization availability');
+    }
+
+    // Notifications
+    await notifyCustomer(customerId, {
+      type: 'JOB_CARD_CREATED',
+      title: 'Walk-in Service Checked-in',
+      message: `Your vehicle ${vehicle.vehicleNumber} has been checked in under Job Card ${savedJobCard.jobNumber}.`,
+      relatedEntityType: 'JobCard',
+      relatedEntityId: savedJobCard._id,
+      metadata: { jobNumber: savedJobCard.jobNumber }
+    });
+
+    await notifyAdminsAndAdvisors({
+      type: 'JOB_CARD_CREATED',
+      title: 'New Walk-in Job Card Created',
+      message: `Job Card ${savedJobCard.jobNumber} created for vehicle ${vehicle.vehicleNumber}.`,
+      relatedEntityType: 'JobCard',
+      relatedEntityId: savedJobCard._id,
+      metadata: { jobNumber: savedJobCard.jobNumber }
+    });
+
+    if (assignedMechanic) {
+      await notifyMechanic(assignedMechanic, {
+        type: 'MECHANIC_ASSIGNED',
+        title: 'New Job Card Assigned',
+        message: `You have been assigned to Job Card ${savedJobCard.jobNumber} for vehicle ${vehicle.vehicleNumber}.`,
+        relatedEntityType: 'JobCard',
+        relatedEntityId: savedJobCard._id,
+        metadata: { jobNumber: savedJobCard.jobNumber }
+      });
+    }
+
+    res.status(201).json(savedJobCard);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Add additional service recommendation during service
+// @route   POST /api/job-cards/:id/recommendations
+// @access  Private (Advisor/Mechanic/Admin)
+export const addAdditionalRecommendation = async (req, res) => {
+  try {
+    const { serviceName, reason, estimatedLabour = 0, estimatedParts = 0, estimatedTotal } = req.body;
+
+    if (!serviceName || !reason) {
+      return res.status(400).json({ message: 'Service name and reason are required' });
+    }
+
+    const jobCard = await JobCard.findById(req.params.id);
+    if (!jobCard) {
+      return res.status(404).json({ message: 'Job Card not found' });
+    }
+
+    if (['Completed', 'Delivered', 'Cancelled'].includes(jobCard.status)) {
+      return res.status(400).json({ message: `Cannot add recommendations to a ${jobCard.status} job card` });
+    }
+
+    const total = estimatedTotal !== undefined ? Number(estimatedTotal) : (Number(estimatedLabour) + Number(estimatedParts));
+
+    const newRecommendation = {
+      serviceName,
+      reason,
+      estimatedLabour: Number(estimatedLabour) || 0,
+      estimatedParts: Number(estimatedParts) || 0,
+      estimatedTotal: total,
+      status: 'Pending Customer Approval',
+      recommendedBy: req.user._id,
+      createdAt: new Date()
+    };
+
+    jobCard.additionalRecommendations.push(newRecommendation);
+    await jobCard.save();
+
+    // Notify customer
+    await notifyCustomer(jobCard.customer, {
+      type: 'RECOMMENDATION_ADDED',
+      title: 'Additional Service Recommendation',
+      message: `Additional service "${serviceName}" has been recommended for your vehicle. Please review and approve in your portal.`,
+      relatedEntityType: 'JobCard',
+      relatedEntityId: jobCard._id,
+      metadata: { jobNumber: jobCard.jobNumber, serviceName, estimatedTotal: total }
+    });
+
+    res.status(201).json(jobCard);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Customer approval or rejection of additional service recommendation
+// @route   PUT /api/job-cards/:id/recommendations/:recId/approval
+// @access  Private (Customer or Advisor on behalf)
+export const respondToRecommendation = async (req, res) => {
+  try {
+    const { action } = req.body; // 'Approve' or 'Reject'
+
+    if (!['Approve', 'Reject'].includes(action)) {
+      return res.status(400).json({ message: 'Action must be "Approve" or "Reject"' });
+    }
+
+    const jobCard = await JobCard.findById(req.params.id);
+    if (!jobCard) {
+      return res.status(404).json({ message: 'Job Card not found' });
+    }
+
+    const rec = jobCard.additionalRecommendations.id(req.params.recId);
+    if (!rec) {
+      return res.status(404).json({ message: 'Recommendation not found' });
+    }
+
+    if (rec.status !== 'Pending Customer Approval') {
+      return res.status(400).json({ message: `Recommendation has already been ${rec.status}` });
+    }
+
+    rec.status = action === 'Approve' ? 'Approved' : 'Rejected';
+    rec.customerActionAt = new Date();
+
+    if (action === 'Approve') {
+      // Automatically add to servicesPerformed with estimated charges
+      jobCard.servicesPerformed.push({
+        serviceName: rec.serviceName,
+        labourCharge: rec.estimatedLabour || 0,
+        washingCharge: 0,
+        isFreeService: false
+      });
+
+      jobCard.estimatedCost = (jobCard.estimatedCost || 0) + (rec.estimatedTotal || 0);
+
+      // Notify advisor and assigned mechanic
+      await notifyAdminsAndAdvisors({
+        type: 'RECOMMENDATION_APPROVED',
+        title: 'Customer Approved Additional Service',
+        message: `Customer approved "${rec.serviceName}" (₹${rec.estimatedTotal}) for Job Card ${jobCard.jobNumber}.`,
+        relatedEntityType: 'JobCard',
+        relatedEntityId: jobCard._id,
+        metadata: { jobNumber: jobCard.jobNumber, serviceName: rec.serviceName }
+      });
+
+      if (jobCard.assignedMechanic) {
+        await notifyMechanic(jobCard.assignedMechanic, {
+          type: 'RECOMMENDATION_APPROVED',
+          title: 'Additional Service Approved',
+          message: `Customer approved "${rec.serviceName}" for Job Card ${jobCard.jobNumber}. You may proceed with the work.`,
+          relatedEntityType: 'JobCard',
+          relatedEntityId: jobCard._id,
+          metadata: { jobNumber: jobCard.jobNumber, serviceName: rec.serviceName }
+        });
+      }
+    } else {
+      // Notify advisor and assigned mechanic of rejection
+      await notifyAdminsAndAdvisors({
+        type: 'RECOMMENDATION_REJECTED',
+        title: 'Customer Declined Additional Service',
+        message: `Customer declined "${rec.serviceName}" for Job Card ${jobCard.jobNumber}. Zero additional charges applied.`,
+        relatedEntityType: 'JobCard',
+        relatedEntityId: jobCard._id,
+        metadata: { jobNumber: jobCard.jobNumber, serviceName: rec.serviceName }
+      });
+    }
+
+    await jobCard.save();
+    res.json(jobCard);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+

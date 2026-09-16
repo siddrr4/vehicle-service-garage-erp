@@ -4,6 +4,10 @@ import ServiceHistory from '../models/ServiceHistory.js';
 import Settings from '../models/Settings.js';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
+import {
+  notifyCustomer,
+  notifyAdminsAndAdvisors,
+} from '../services/notificationService.js';
 
 // @desc    Generate a new invoice from a completed Job Card
 // @route   POST /api/billing/generate
@@ -106,6 +110,14 @@ export const generateInvoice = async (req, res) => {
       { jobCard: jobCard._id },
       { invoice: createdInvoice._id }
     );
+
+    await notifyCustomer(createdInvoice.customer, {
+      type: 'INVOICE_GENERATED',
+      title: 'Your service invoice is ready',
+      message: `Invoice ${createdInvoice.invoiceNumber} for ₹${createdInvoice.grandTotal} is ready for payment.`,
+      relatedEntityType: 'Invoice',
+      relatedEntityId: createdInvoice._id,
+    });
     
     // Populate to return full info
     await createdInvoice.populate('customer', 'fullName mobileNumber emailAddress address city state pincode');
@@ -281,6 +293,22 @@ export const recordPayment = async (req, res) => {
     }
 
     const updatedInvoice = await invoice.save();
+
+    await notifyCustomer(updatedInvoice.customer, {
+      type: 'PAYMENT_SUCCESS',
+      title: 'Payment successful',
+      message: `Payment of ₹${payAmount} received for Invoice ${updatedInvoice.invoiceNumber}. Remaining balance: ₹${updatedInvoice.balanceDue}.`,
+      relatedEntityType: 'Invoice',
+      relatedEntityId: updatedInvoice._id,
+    });
+
+    await notifyAdminsAndAdvisors({
+      type: 'PAYMENT_SUCCESS',
+      title: 'Payment received',
+      message: `Payment of ₹${payAmount} recorded for Invoice ${updatedInvoice.invoiceNumber} via ${method}.`,
+      relatedEntityType: 'Invoice',
+      relatedEntityId: updatedInvoice._id,
+    });
     
     // Repopulate for frontend
     await updatedInvoice.populate('customer', 'fullName mobileNumber emailAddress address city state pincode');
@@ -510,6 +538,22 @@ export const verifyPayment = async (req, res) => {
     }
 
     const updatedInvoice = await invoice.save();
+
+    await notifyCustomer(updatedInvoice.customer, {
+      type: 'PAYMENT_SUCCESS',
+      title: 'Payment successful',
+      message: `Online payment of ₹${payAmount} received for Invoice ${updatedInvoice.invoiceNumber}. Remaining balance: ₹${updatedInvoice.balanceDue}.`,
+      relatedEntityType: 'Invoice',
+      relatedEntityId: updatedInvoice._id,
+    });
+
+    await notifyAdminsAndAdvisors({
+      type: 'PAYMENT_SUCCESS',
+      title: 'Payment received',
+      message: `Online Razorpay payment of ₹${payAmount} received for Invoice ${updatedInvoice.invoiceNumber}.`,
+      relatedEntityType: 'Invoice',
+      relatedEntityId: updatedInvoice._id,
+    });
     
     // Repopulate for frontend
     await updatedInvoice.populate('customer', 'fullName mobileNumber emailAddress address city state pincode');
@@ -626,6 +670,14 @@ export const autoGenerateInvoice = async (jobCard) => {
       { jobCard: populatedJobCard._id },
       { invoice: createdInvoice._id }
     );
+
+    await notifyCustomer(createdInvoice.customer, {
+      type: 'INVOICE_GENERATED',
+      title: 'Your service invoice is ready',
+      message: `Invoice ${createdInvoice.invoiceNumber} for ₹${createdInvoice.grandTotal} is ready for payment.`,
+      relatedEntityType: 'Invoice',
+      relatedEntityId: createdInvoice._id,
+    });
     
     return createdInvoice;
   } catch (error) {

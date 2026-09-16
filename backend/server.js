@@ -25,6 +25,10 @@ import billingRoutes from './routes/billingRoutes.js';
 import serviceHistoryRoutes from './routes/serviceHistoryRoutes.js';
 import reportsRoutes from './routes/reportsRoutes.js';
 import settingsRoutes from './routes/settingsRoutes.js';
+import salaryRoutes from './routes/salaryRoutes.js';
+import payrollRoutes from './routes/payrollRoutes.js';
+import notificationRoutes from './routes/notificationRoutes.js';
+import insuranceRenewalRoutes from './routes/insuranceRenewalRoutes.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 
 dotenv.config();
@@ -33,7 +37,7 @@ dotenv.config();
 if (!process.env.RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID === 'dummy_key') {
   console.error('CONFIGURATION ERROR: RAZORPAY_KEY_ID is missing or not configured in environment variables.');
 } else {
-  console.log('Razorpay Key ID configuration: DETECTED');
+  console.log('Razorpay Key ID configuration: DETECTED (' + process.env.RAZORPAY_KEY_ID.substring(0, 12) + '...)');
 }
 
 if (!process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_KEY_SECRET === 'dummy_secret') {
@@ -76,6 +80,10 @@ app.use('/api/billing', billingRoutes);
 app.use('/api/service-history', serviceHistoryRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/salary', salaryRoutes);
+app.use('/api/payroll', payrollRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/insurance-renewals', insuranceRenewalRoutes);
 
 app.get('/', (req, res) => {
   res.send('API is running...');

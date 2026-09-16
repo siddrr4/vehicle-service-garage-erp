@@ -6,6 +6,16 @@ import JobCard from '../models/JobCard.js';
 import Employee from '../models/Employee.js';
 import WaitingQueue from '../models/WaitingQueue.js';
 import { createJobCardForAppointment } from './jobCardController.js';
+import {
+  getIndiaDateStr,
+  getIndiaStartOfDay,
+  getIndiaEndOfDay,
+  formatDateIST,
+} from '../utils/dateUtils.js';
+import {
+  notifyCustomer,
+  notifyAdminsAndAdvisors,
+} from '../services/notificationService.js';
 
 // @desc    Get service advisors
 // @route   GET /api/appointments/advisors
@@ -113,22 +123,19 @@ const TIME_SLOTS = [
   '04:00 PM - 05:00 PM'
 ];
 
-const getFormattedDateStr = (d = new Date()) => {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
 // Helper function to calculate slot capacity for a date & time
 export const calculateSlotCapacity = async (dateStr) => {
-  const todayStr = getFormattedDateStr();
+  const todayStr = getIndiaDateStr();
   const activeMechanics = await Employee.find({ role: 'Mechanic', status: 'Active' });
   const totalActiveMechanics = activeMechanics.length;
 
-  let capacityPerSlot = totalActiveMechanics > 0 ? totalActiveMechanics : 5; // Default workshop capacity
+  // Real capacity: for future dates, capacity is actual active mechanic count (no dummy fallback)
+  let capacityPerSlot = totalActiveMechanics;
 
-  if (dateStr === todayStr) {
+  if (dateStr < todayStr) {
+    // Past dates cannot be booked
+    capacityPerSlot = 0;
+  } else if (dateStr === todayStr) {
     // Real-time capacity based on today's actual attendance and busy status
     const Attendance = (await import('../models/Attendance.js')).default;
     const mechanicIds = activeMechanics.map(m => m._id);
@@ -138,27 +145,27 @@ export const calculateSlotCapacity = async (dateStr) => {
       employeeId: { $in: mechanicIds }
     });
 
+    // Mechanic is eligible only if checked in, NOT checked out, and NOT on Leave or Absent
     const checkedInMechanicIds = todayAttendance
-      .filter(a => a.checkIn && !a.checkOut)
+      .filter(a => a.checkIn && !a.checkOut && a.status !== 'Leave' && a.status !== 'Absent')
       .map(a => a.employeeId.toString());
 
     // Find active job cards assigned to checked-in mechanics
     const activeJobCards = await JobCard.find({
-      status: { $in: ['Pending', 'Assigned', 'In Progress'] },
+      status: { $in: ['Open', 'In Progress', 'Waiting for Parts', 'Assigned', 'Pending'] },
       assignedMechanic: { $in: checkedInMechanicIds }
     });
 
-    const busyMechanicIds = new Set(activeJobCards.map(jc => jc.assignedMechanic.toString()));
+    const busyMechanicIds = new Set(activeJobCards.map(jc => jc.assignedMechanic?.toString()).filter(Boolean));
     const availableMechanics = checkedInMechanicIds.filter(id => !busyMechanicIds.has(id));
 
-    // Current available mechanics = today's slot capacity
+    // Current available mechanics = today's real slot capacity (0 if none available)
     capacityPerSlot = availableMechanics.length;
   }
 
-  // Parse start and end of requested date
-  const [year, month, day] = dateStr.split('-').map(Number);
-  const startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
-  const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
+  // Parse start and end of requested date in IST
+  const startOfDay = getIndiaStartOfDay(dateStr);
+  const endOfDay = getIndiaEndOfDay(dateStr);
 
   const existingAppointments = await Appointment.find({
     appointmentDate: { $gte: startOfDay, $lte: endOfDay },
@@ -173,7 +180,12 @@ export const calculateSlotCapacity = async (dateStr) => {
     ).length;
 
     const available = Math.max(0, capacityPerSlot - booked);
-    const status = available > 0 ? 'Available' : 'FULL';
+    let status = 'Available';
+    if (capacityPerSlot === 0) {
+      status = 'No Capacity';
+    } else if (available === 0) {
+      status = 'FULL';
+    }
 
     return {
       time: slot,
@@ -184,7 +196,17 @@ export const calculateSlotCapacity = async (dateStr) => {
     };
   });
 
-  return { date: dateStr, capacityPerSlot, slots };
+  const totalBooked = slots.reduce((sum, s) => sum + s.booked, 0);
+  const totalAvailable = slots.reduce((sum, s) => sum + s.available, 0);
+
+  return { 
+    date: dateStr, 
+    capacityPerSlot, 
+    totalBooked, 
+    totalAvailable, 
+    totalCapacity: slots.length * capacityPerSlot, 
+    slots 
+  };
 };
 
 // @desc    Get available time slots with dynamic capacity
@@ -192,7 +214,7 @@ export const calculateSlotCapacity = async (dateStr) => {
 // @access  Public / Private
 export const getAvailableSlots = async (req, res) => {
   try {
-    const dateStr = req.query.date || getFormattedDateStr();
+    const dateStr = req.query.date || getIndiaDateStr();
     const slotData = await calculateSlotCapacity(dateStr);
     res.json(slotData);
   } catch (error) {
@@ -210,7 +232,7 @@ export const getNextAvailableSlot = async (req, res) => {
     for (let i = 0; i < 30; i++) {
       const checkDate = new Date(today);
       checkDate.setDate(today.getDate() + i);
-      const dateStr = getFormattedDateStr(checkDate);
+      const dateStr = getIndiaDateStr(checkDate);
       
       const slotData = await calculateSlotCapacity(dateStr);
       
@@ -232,10 +254,9 @@ export const getNextAvailableSlot = async (req, res) => {
 // @access  Private (Admin/Advisor)
 export const getTodaySchedule = async (req, res) => {
   try {
-    const todayStr = getFormattedDateStr();
-    const [year, month, day] = todayStr.split('-').map(Number);
-    const startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
-    const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
+    const todayStr = getIndiaDateStr();
+    const startOfDay = getIndiaStartOfDay(todayStr);
+    const endOfDay = getIndiaEndOfDay(todayStr);
 
     const appointments = await Appointment.find({
       appointmentDate: { $gte: startOfDay, $lte: endOfDay }
@@ -323,12 +344,18 @@ export const createAppointment = async (req, res) => {
     }
 
     // Backend validation for capacity availability
-    const dateStr = new Date(appointmentDate).toISOString().split('T')[0];
+    const dateStr = typeof appointmentDate === 'string' && /^\d{4}-\d{2}-\d{2}/.test(appointmentDate)
+      ? appointmentDate.substring(0, 10)
+      : getIndiaDateStr(new Date(appointmentDate));
     const slotInfo = await calculateSlotCapacity(dateStr);
     const targetSlot = slotInfo.slots.find(s => s.time === preferredTime || s.time.startsWith(preferredTime));
 
     if (targetSlot && targetSlot.available <= 0) {
-      return res.status(400).json({ message: 'This slot is no longer available. Please select another slot.' });
+      return res.status(400).json({ 
+        message: targetSlot.capacity === 0
+          ? 'No capacity available for this date/time. Please join the waiting queue or choose another date.'
+          : 'This slot is no longer available. Please select another slot.'
+      });
     }
 
     const appointment = new Appointment({
@@ -344,6 +371,23 @@ export const createAppointment = async (req, res) => {
     });
 
     const createdAppointment = await appointment.save();
+
+    // Trigger Notifications for Appointment Creation
+    await notifyCustomer(createdAppointment.customer, {
+      type: 'APPOINTMENT_BOOKED',
+      title: 'Appointment booked successfully',
+      message: `Your appointment for ${createdAppointment.serviceType} on ${formatDateIST(createdAppointment.appointmentDate)} (${createdAppointment.preferredTime}) has been booked.`,
+      relatedEntityType: 'Appointment',
+      relatedEntityId: createdAppointment._id,
+    });
+
+    await notifyAdminsAndAdvisors({
+      type: 'APPOINTMENT_BOOKED',
+      title: 'New appointment booked',
+      message: `New appointment received for ${createdAppointment.serviceType} on ${formatDateIST(createdAppointment.appointmentDate)} (${createdAppointment.preferredTime}).`,
+      relatedEntityType: 'Appointment',
+      relatedEntityId: createdAppointment._id,
+    });
 
     if (createdAppointment.status === 'Approved' || createdAppointment.status === 'Checked-In') {
       await createJobCardForAppointment(createdAppointment);
@@ -388,10 +432,31 @@ export const updateAppointment = async (req, res) => {
       appointment.serviceAdvisor = serviceAdvisor === '' ? undefined : serviceAdvisor;
     }
 
+    const prevStatus = appointment.status;
     const newStatus = status || appointment.status;
     appointment.status = newStatus;
 
     const updatedAppointment = await appointment.save();
+
+    if (newStatus !== prevStatus) {
+      if (newStatus === 'Confirmed' || newStatus === 'Approved') {
+        await notifyCustomer(updatedAppointment.customer, {
+          type: 'APPOINTMENT_CONFIRMED',
+          title: 'Your appointment has been confirmed',
+          message: `Your appointment for ${updatedAppointment.serviceType} on ${formatDateIST(updatedAppointment.appointmentDate)} (${updatedAppointment.preferredTime}) has been confirmed.`,
+          relatedEntityType: 'Appointment',
+          relatedEntityId: updatedAppointment._id,
+        });
+      } else if (newStatus === 'Cancelled') {
+        await notifyCustomer(updatedAppointment.customer, {
+          type: 'APPOINTMENT_CANCELLED',
+          title: 'Your appointment has been cancelled',
+          message: `Your appointment for ${updatedAppointment.serviceType} on ${formatDateIST(updatedAppointment.appointmentDate)} has been cancelled.`,
+          relatedEntityType: 'Appointment',
+          relatedEntityId: updatedAppointment._id,
+        });
+      }
+    }
 
     // ERP Workflow Actions Based on New Status
     if (newStatus === 'Approved') {
@@ -413,11 +478,10 @@ export const updateAppointment = async (req, res) => {
         }
       }
       
-      // Check for waiting queue members for today
-      const todayStr = getFormattedDateStr();
-      const [year, month, day] = todayStr.split('-').map(Number);
-      const startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
-      const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
+      // Check for waiting queue members for today in IST
+      const todayStr = getIndiaDateStr();
+      const startOfDay = getIndiaStartOfDay(todayStr);
+      const endOfDay = getIndiaEndOfDay(todayStr);
 
       const waitingCount = await WaitingQueue.countDocuments({
         arrivalTime: { $gte: startOfDay, $lte: endOfDay },
