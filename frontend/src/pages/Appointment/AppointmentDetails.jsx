@@ -5,6 +5,7 @@ import { FaArrowLeft, FaEdit, FaCalendarAlt, FaUser, FaCar, FaClock, FaWrench, F
 import { toast } from 'react-toastify';
 import appointmentService from '../../services/appointmentService';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
+import { formatDateIST } from '../../utils/dateUtils';
 
 const AppointmentDetails = () => {
   const { id } = useParams();
@@ -73,7 +74,7 @@ const AppointmentDetails = () => {
                   <Col sm={6}>
                     <p className="text-muted mb-1 small">Appointment Date & Time</p>
                     <p className="fw-bold text-dark mb-0 fs-5">
-                      {new Date(appointment.appointmentDate).toLocaleDateString()} at {appointment.preferredTime}
+                      {formatDateIST(appointment.appointmentDate)} at {appointment.preferredTime}
                     </p>
                   </Col>
                 </Row>

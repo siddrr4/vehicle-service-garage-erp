@@ -5,6 +5,7 @@ import { toast } from 'react-toastify';
 import jobCardService from '../../services/jobCardService';
 import billingService from '../../services/billingService';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
+import { formatDateIST } from '../../utils/dateUtils';
 
 const MyJobCards = () => {
   const navigate = useNavigate();
@@ -100,7 +101,7 @@ const MyJobCards = () => {
                       <p className="mb-0 text-truncate" style={{maxHeight: '3em', overflow: 'hidden'}}>{jc.workDescription}</p>
                     </div>
                   )}
-                  {jc.invoice && (
+                  {jc.invoice ? (
                     <div className="mt-3 pt-3 border-top small">
                       <div className="d-flex justify-content-between mb-1">
                         <span className="text-muted">Invoice No:</span>
@@ -119,6 +120,23 @@ const MyJobCards = () => {
                         <strong className="text-danger">₹{jc.invoice.balanceDue.toFixed(2)}</strong>
                       </div>
                     </div>
+                  ) : (
+                    <div className="mt-3 pt-3 border-top small text-muted">
+                      {jc.servicesPerformed && jc.servicesPerformed.length > 0 && (
+                        <div className="mb-2">
+                          <span className="fw-semibold text-dark">Services:</span>{' '}
+                          {jc.servicesPerformed.map(s => s.serviceName).join(', ')}
+                        </div>
+                      )}
+                      <div className="d-flex justify-content-between mb-1">
+                        <span>Current Stage:</span>
+                        <span className="fw-semibold text-primary">{jc.status}</span>
+                      </div>
+                      <div className="d-flex justify-content-between">
+                        <span>Estimated Cost:</span>
+                        <strong className="text-dark">₹{(jc.estimatedCost || 0).toFixed(2)}</strong>
+                      </div>
+                    </div>
                   )}
                 </div>
                 <div className="card-footer bg-light border-top-0 rounded-bottom p-3">
@@ -126,9 +144,9 @@ const MyJobCards = () => {
                     <div className="d-flex align-items-center gap-2 text-muted">
                       <FaCalendarAlt />
                       {jc.status === 'Completed' || jc.status === 'Delivered' ? (
-                        <span>Completion Date: {jc.completionTime ? new Date(jc.completionTime).toLocaleDateString() : 'N/A'}</span>
+                        <span>Completion Date: {jc.completionTime ? formatDateIST(jc.completionTime) : 'N/A'}</span>
                       ) : (
-                        <span>Est. Delivery: {jc.estimatedDeliveryDate ? new Date(jc.estimatedDeliveryDate).toLocaleDateString() : 'N/A'}</span>
+                        <span>Est. Delivery: {jc.estimatedDeliveryDate ? formatDateIST(jc.estimatedDeliveryDate) : 'N/A'}</span>
                       )}
                     </div>
                   </div>
@@ -140,41 +158,50 @@ const MyJobCards = () => {
                       </strong>
                     </div>
                   )}
-                  {(jc.status === 'Completed' || jc.status === 'Delivered') && (
-                    <div className="d-grid gap-2 mt-2 border-top pt-2">
-                      {jc.invoice ? (
-                        <>
-                          <button
-                            className="btn btn-orange btn-sm w-100"
-                            onClick={() => navigate(`/billing/invoice/${jc.invoice._id}`)}
-                          >
-                            View Invoice
-                          </button>
-                          {jc.invoice.status === 'Unpaid' && (
+                  <div className="d-grid gap-2 mt-2 border-top pt-2">
+                    <button
+                      className="btn btn-outline-primary btn-sm w-100 d-flex align-items-center justify-content-center gap-2"
+                      onClick={() => navigate(`/job-cards/${jc._id}`)}
+                    >
+                      <FaTools /> View Job Details
+                    </button>
+
+                    {(jc.status === 'Completed' || jc.status === 'Delivered') && (
+                      <>
+                        {jc.invoice ? (
+                          <>
                             <button
-                              className="btn btn-primary btn-sm w-100"
+                              className="btn btn-orange btn-sm w-100"
                               onClick={() => navigate(`/billing/invoice/${jc.invoice._id}`)}
                             >
-                              Pay Now (₹{jc.invoice.balanceDue.toFixed(2)})
+                              View Invoice
                             </button>
-                          )}
-                          {jc.invoice.status === 'Partially Paid' && (
-                            <button
-                              className="btn btn-warning text-dark btn-sm fw-semibold w-100"
-                              onClick={() => navigate(`/billing/invoice/${jc.invoice._id}`)}
-                            >
-                              Pay Remaining (₹{jc.invoice.balanceDue.toFixed(2)})
-                            </button>
-                          )}
-                          {jc.invoice.status === 'Paid' && (
-                            <span className="badge bg-success py-2 w-100">Paid ✓</span>
-                          )}
-                        </>
-                      ) : (
-                        <span className="text-muted small text-center">Invoice pending generation</span>
-                      )}
-                    </div>
-                  )}
+                            {jc.invoice.status === 'Unpaid' && (
+                              <button
+                                className="btn btn-primary btn-sm w-100"
+                                onClick={() => navigate(`/billing/invoice/${jc.invoice._id}`)}
+                              >
+                                Pay Now (₹{jc.invoice.balanceDue.toFixed(2)})
+                              </button>
+                            )}
+                            {jc.invoice.status === 'Partially Paid' && (
+                              <button
+                                className="btn btn-warning text-dark btn-sm fw-semibold w-100"
+                                onClick={() => navigate(`/billing/invoice/${jc.invoice._id}`)}
+                              >
+                                Pay Remaining (₹{jc.invoice.balanceDue.toFixed(2)})
+                              </button>
+                            )}
+                            {jc.invoice.status === 'Paid' && (
+                              <span className="badge bg-success py-2 w-100">Paid ✓</span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-muted small text-center">Invoice pending generation</span>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

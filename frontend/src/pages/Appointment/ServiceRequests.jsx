@@ -4,6 +4,7 @@ import { FaSearch, FaCheck, FaTimes, FaUserTie } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import appointmentService from '../../services/appointmentService';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
+import { formatDateIST } from '../../utils/dateUtils';
 
 const ServiceRequests = () => {
   const [requests, setRequests] = useState([]);
@@ -177,7 +178,7 @@ const ServiceRequests = () => {
                   {requests.map((req) => (
                     <tr key={req._id}>
                       <td>
-                        <div className="fw-bold">{new Date(req.appointmentDate).toLocaleDateString()}</div>
+                        <div className="fw-bold">{formatDateIST(req.appointmentDate)}</div>
                       </td>
                       <td>
                         <div>{req.customer?.fullName}</div>

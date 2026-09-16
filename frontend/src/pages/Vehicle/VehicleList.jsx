@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  FaPlus, FaEye, FaEdit, FaTrash, FaFilter, FaCar, FaSearch,
+  FaPlus, FaEye, FaEdit, FaTrash, FaFilter, FaCar, FaSearch, FaGasPump, FaCogs, FaTachometerAlt
 } from 'react-icons/fa';
 import { getVehicles, deleteVehicle } from '../../services/vehicleService';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
+import PageHeader from '../../components/UI/PageHeader';
+import StatCard from '../../components/UI/StatCard';
+import EmptyState from '../../components/UI/EmptyState';
 import { toast } from 'react-toastify';
 
 const FUEL_TYPES = ['Petrol', 'Diesel', 'CNG', 'Electric', 'Hybrid'];
@@ -95,57 +98,76 @@ const VehicleList = () => {
   const hasFilters = keyword || fuelFilter || transmissionFilter;
 
   return (
-    <div>
-      {/* Breadcrumb */}
-      <nav aria-label="breadcrumb">
-        <ol className="breadcrumb">
-          <li className="breadcrumb-item">
-            <Link to="/admin-dashboard">Home</Link>
-          </li>
-          <li className="breadcrumb-item active" aria-current="page">
-            Vehicles
-          </li>
-        </ol>
-      </nav>
-
-      {/* Page Header */}
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <div>
-          <h2 className="text-navy fw-bold mb-0">Vehicle Management</h2>
-          <p className="text-muted mb-0 small mt-1">
-            {total} vehicle{total !== 1 ? 's' : ''} registered in the system
-          </p>
-        </div>
-        <div className="d-flex gap-2">
+    <div className="container-fluid px-0">
+      <PageHeader
+        title="Vehicle Registry & Profiles"
+        subtitle={`${total} registered customer vehicles with technical specifications & service history`}
+        breadcrumbs={[
+          { label: 'Workshop', to: '/admin-dashboard' },
+          { label: 'Vehicles' }
+        ]}
+        actions={
           <Link
             to="/vehicles/add"
             id="btn-add-vehicle"
             className="btn btn-orange d-flex align-items-center gap-2 shadow-sm"
           >
-            <FaPlus /> Add Vehicle
+            <FaPlus /> Register Vehicle
           </Link>
+        }
+      />
+
+      {/* KPI Overview Row */}
+      <div className="row g-3 mb-4">
+        <div className="col-12 col-sm-6 col-xl-4">
+          <StatCard
+            title="Total Registered Vehicles"
+            value={total}
+            icon={FaCar}
+            color="navy"
+            subtitle="Fleet active in garage database"
+          />
+        </div>
+        <div className="col-12 col-sm-6 col-xl-4">
+          <StatCard
+            title="Filtered Vehicles"
+            value={sortedVehicles.length}
+            icon={FaFilter}
+            color="orange"
+            subtitle={hasFilters ? 'Active search/filter matches' : 'Full page view'}
+          />
+        </div>
+        <div className="col-12 col-sm-6 col-xl-4">
+          <StatCard
+            title="Registry Pages"
+            value={`${page} of ${pages || 1}`}
+            icon={FaCogs}
+            color="blue"
+            subtitle="Paginated workshop directory"
+          />
         </div>
       </div>
 
-      <div className="bg-card p-4">
-        {/* Search & Filters Row */}
-        <div className="row mb-4 align-items-center g-3">
-          {/* Search */}
-          <div className="col-md-5 col-lg-4">
-            <div className="input-group shadow-sm">
-              <span className="input-group-text bg-white border-end-0">
-                <FaSearch className="text-muted" />
-              </span>
-              <input
-                id="vehicle-search"
-                type="text"
-                className="form-control border-start-0 ps-0"
-                placeholder="Search by number, brand or model..."
-                value={keyword}
-                onChange={handleSearch}
-              />
+      <div className="card border-0 shadow-sm rounded-3">
+        <div className="card-body p-4">
+          {/* Search & Filters Row */}
+          <div className="row mb-4 align-items-center g-3">
+            {/* Search */}
+            <div className="col-md-5 col-lg-4">
+              <div className="input-group">
+                <span className="input-group-text bg-light border-end-0 text-muted">
+                  <FaSearch />
+                </span>
+                <input
+                  id="vehicle-search"
+                  type="text"
+                  className="form-control bg-light border-start-0 ps-0"
+                  placeholder="Search license plate, brand, model..."
+                  value={keyword}
+                  onChange={handleSearch}
+                />
+              </div>
             </div>
-          </div>
 
           {/* Filters */}
           <div className="col-md-7 col-lg-8 d-flex justify-content-md-end gap-2 flex-wrap">
@@ -217,18 +239,18 @@ const VehicleList = () => {
         ) : (
           <>
             <div className="table-responsive">
-              <table className="table table-hover align-middle border" id="vehicles-table">
+              <table className="table table-hover align-middle mb-0" id="vehicles-table">
                 <thead className="table-light">
                   <tr>
-                    <th className="px-3">#</th>
-                    <th>Vehicle No.</th>
-                    <th>Make &amp; Model</th>
-                    <th>Year</th>
-                    <th>Fuel / Transmission</th>
-                    <th>Odometer</th>
-                    <th>Owner</th>
-                    <th>Registered On</th>
-                    <th className="text-end px-4">Actions</th>
+                    <th className="px-3 text-muted small text-uppercase fw-bold">#</th>
+                    <th className="text-muted small text-uppercase fw-bold">Vehicle Reg.</th>
+                    <th className="text-muted small text-uppercase fw-bold">Make &amp; Model</th>
+                    <th className="text-muted small text-uppercase fw-bold">Year</th>
+                    <th className="text-muted small text-uppercase fw-bold">Fuel / Transmission</th>
+                    <th className="text-muted small text-uppercase fw-bold">Odometer</th>
+                    <th className="text-muted small text-uppercase fw-bold">Owner</th>
+                    <th className="text-muted small text-uppercase fw-bold">Registered</th>
+                    <th className="text-end px-4 text-muted small text-uppercase fw-bold">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -238,38 +260,50 @@ const VehicleList = () => {
                         {(page - 1) * 10 + idx + 1}
                       </td>
                       <td>
-                        <span className="fw-bold text-navy d-flex align-items-center gap-2">
-                          <FaCar className="text-orange" />
-                          {vehicle.vehicleNumber}
-                        </span>
+                        <div className="d-flex align-items-center gap-2">
+                          <div className="bg-light p-2 rounded-2 border text-orange">
+                            <FaCar size={16} />
+                          </div>
+                          <div>
+                            <span className="fw-bold text-navy font-monospace d-block">{vehicle.vehicleNumber}</span>
+                            <span className="badge bg-light text-muted border px-2 py-0" style={{ fontSize: '0.7rem' }}>
+                              {vehicle.purchaseType === 'New' ? 'New Vehicle' : 'Pre-Owned'}
+                            </span>
+                          </div>
+                        </div>
                       </td>
                       <td>
-                        <span className="fw-semibold">{vehicle.brand}</span>{' '}
+                        <span className="fw-semibold text-dark">{vehicle.brand}</span>{' '}
                         <span className="text-muted">{vehicle.model}</span>
                       </td>
-                      <td>{vehicle.manufacturingYear}</td>
                       <td>
-                        <span className="badge bg-primary bg-opacity-10 text-primary border me-1 fw-normal">
-                          {vehicle.fuelType}
-                        </span>
-                        <span className="badge bg-secondary bg-opacity-10 text-secondary border fw-normal">
-                          {vehicle.transmission}
-                        </span>
+                        <span className="badge bg-light text-dark border fw-normal">{vehicle.manufacturingYear}</span>
                       </td>
                       <td>
-                        <span className="fw-medium">
-                          {vehicle.currentOdometerReading?.toLocaleString()} km
+                        <div className="d-flex gap-1">
+                          <span className="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 fw-normal">
+                            {vehicle.fuelType}
+                          </span>
+                          <span className="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 fw-normal">
+                            {vehicle.transmission}
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <span className="fw-semibold text-dark">
+                          {vehicle.currentOdometerReading?.toLocaleString() || '0'} <small className="text-muted fw-normal">km</small>
                         </span>
                       </td>
                       <td>
                         {vehicle.customer ? (
-                          <>
-                            <span className="fw-semibold">{vehicle.customer.fullName}</span>
-                            <br />
+                          <div>
+                            <Link to={`/customers/${vehicle.customer._id}`} className="fw-semibold text-navy text-decoration-none hover-underline d-block">
+                              {vehicle.customer.fullName}
+                            </Link>
                             <small className="text-muted">{vehicle.customer.mobileNumber}</small>
-                          </>
+                          </div>
                         ) : (
-                          <span className="text-muted fst-italic">Unassigned</span>
+                          <span className="text-muted fst-italic small">Unassigned</span>
                         )}
                       </td>
                       <td className="text-muted small">
@@ -283,20 +317,20 @@ const VehicleList = () => {
                         <div className="d-flex gap-2 justify-content-end">
                           <Link
                             to={`/vehicles/${vehicle._id}`}
-                            className="btn btn-sm btn-light border text-primary"
-                            title="View Details"
+                            className="btn btn-sm btn-outline-secondary"
+                            title="View Vehicle Passport"
                           >
                             <FaEye />
                           </Link>
                           <Link
                             to={`/vehicles/edit/${vehicle._id}`}
-                            className="btn btn-sm btn-light border text-secondary"
+                            className="btn btn-sm btn-outline-primary"
                             title="Edit Vehicle"
                           >
                             <FaEdit />
                           </Link>
                           <button
-                            className="btn btn-sm btn-light border text-danger"
+                            className="btn btn-sm btn-outline-danger"
                             onClick={() => handleDelete(vehicle._id, vehicle.vehicleNumber)}
                             title="Delete Vehicle"
                           >
@@ -308,17 +342,15 @@ const VehicleList = () => {
                   ))}
                   {sortedVehicles.length === 0 && (
                     <tr>
-                      <td colSpan="9" className="text-center py-5">
-                        <FaCar size={40} className="text-muted mb-3 d-block mx-auto" />
-                        <div className="text-muted mb-2 fw-medium">No vehicles found</div>
-                        {hasFilters && (
-                          <button
-                            className="btn btn-sm btn-outline-secondary mt-2"
-                            onClick={clearFilters}
-                          >
-                            Clear Filters
-                          </button>
-                        )}
+                      <td colSpan="9" className="p-0 border-0">
+                        <EmptyState
+                          icon={FaCar}
+                          title="No vehicles found"
+                          description={hasFilters ? "No vehicles match the selected criteria." : "No customer vehicles have been registered in the garage registry yet."}
+                          actionLabel={hasFilters ? "Clear All Filters" : "Register First Vehicle"}
+                          actionLink={hasFilters ? undefined : "/vehicles/add"}
+                          onAction={hasFilters ? clearFilters : undefined}
+                        />
                       </td>
                     </tr>
                   )}
@@ -376,7 +408,8 @@ const VehicleList = () => {
         )}
       </div>
     </div>
-  );
+  </div>
+);
 };
 
 export default VehicleList;

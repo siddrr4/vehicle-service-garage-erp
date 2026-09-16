@@ -3,6 +3,7 @@ import { Row, Col, Card, Form, Button, Tabs, Tab } from 'react-bootstrap';
 import { FaBuilding, FaFileInvoice, FaWrench, FaCreditCard, FaLock } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import settingService from '../../services/settingService';
+import PageHeader from '../../components/UI/PageHeader';
 
 const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState('profile');
@@ -152,12 +153,19 @@ const SettingsPage = () => {
   }
 
   return (
-    <div className="container-fluid py-4">
-      <h3 className="fw-bold text-navy mb-4">ERP Configuration Settings</h3>
+    <div className="container-fluid px-0">
+      <PageHeader
+        title="ERP Configuration & System Settings"
+        subtitle="Business profile, tax parameters, invoice numbering sequences, payment gateways, and security controls"
+        breadcrumbs={[
+          { label: 'System', to: '/admin-dashboard' },
+          { label: 'Settings' }
+        ]}
+      />
       
       <Row>
         <Col md={12}>
-          <Card className="border-0 shadow-sm rounded mb-4 bg-white text-dark">
+          <Card className="border-0 shadow-sm rounded-3 mb-4 bg-white text-dark">
             <Card.Body className="p-0">
               <Tabs
                 activeKey={activeTab}

@@ -5,6 +5,7 @@ import serviceHistoryService from '../../services/serviceHistoryService';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
 import { toast } from 'react-toastify';
 import { AuthContext } from '../../context/AuthContext';
+import { formatDateIST } from '../../utils/dateUtils';
 
 const ServiceHistoryList = () => {
   const { user } = useContext(AuthContext);
@@ -137,7 +138,7 @@ const ServiceHistoryList = () => {
                 {historyRecords.map((record) => (
                   <tr key={record._id}>
                     <td>
-                      <div className="fw-bold">{new Date(record.serviceDate).toLocaleDateString()}</div>
+                      <div className="fw-bold">{formatDateIST(record.serviceDate)}</div>
                     </td>
                     <td>
                       <span className="text-primary fw-bold">{record.jobCard?.jobNumber || 'N/A'}</span>

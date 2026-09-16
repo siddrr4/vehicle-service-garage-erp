@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
+import { Row, Col, Button, Table } from 'react-bootstrap';
 import { FaArrowLeft, FaSave, FaPlus, FaTrash } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import jobCardService from '../../services/jobCardService';
@@ -7,6 +8,176 @@ import appointmentService from '../../services/appointmentService';
 import employeeService from '../../services/employeeService';
 import sparePartService from '../../services/sparePartService';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
+import { getIndiaDateStr, formatDateIST } from '../../utils/dateUtils';
+
+const PREDEFINED_SERVICES = [
+  'Oil Change',
+  'Engine Oil Replacement',
+  'General Service',
+  'Brake Service',
+  'AC Service',
+  'Wheel Alignment',
+  'Wheel Balancing',
+  'Battery Replacement',
+  'Engine Inspection',
+  'Periodic Maintenance'
+];
+
+const ServiceSelect = ({
+  value,
+  onChange,
+  placeholder = 'Select or enter service (e.g. Oil Change)',
+  required = false
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const containerRef = useRef(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setIsOpen(false);
+        setHighlightedIndex(-1);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  const trimmedValue = (value || '').trim().toLowerCase();
+  const isPredefinedMatch = PREDEFINED_SERVICES.some((s) => s.toLowerCase() === trimmedValue);
+
+  const filteredServices = (!trimmedValue || isPredefinedMatch)
+    ? PREDEFINED_SERVICES
+    : PREDEFINED_SERVICES.filter((s) => s.toLowerCase().includes(trimmedValue));
+
+  const handleSelect = (serviceName) => {
+    onChange(serviceName);
+    setIsOpen(false);
+    setHighlightedIndex(-1);
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (!isOpen) {
+      if (e.key === 'ArrowDown' || e.key === 'Enter') {
+        setIsOpen(true);
+        e.preventDefault();
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedIndex((prev) =>
+        prev < filteredServices.length - 1 ? prev + 1 : 0
+      );
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIndex((prev) =>
+        prev > 0 ? prev - 1 : filteredServices.length - 1
+      );
+    } else if (e.key === 'Enter') {
+      if (highlightedIndex >= 0 && highlightedIndex < filteredServices.length) {
+        e.preventDefault();
+        handleSelect(filteredServices[highlightedIndex]);
+      } else {
+        setIsOpen(false);
+      }
+    } else if (e.key === 'Escape') {
+      setIsOpen(false);
+      setHighlightedIndex(-1);
+    }
+  };
+
+  return (
+    <div className="position-relative w-100" ref={containerRef}>
+      <div className="input-group input-group-sm">
+        <input
+          ref={inputRef}
+          type="text"
+          className="form-control form-control-sm"
+          value={value}
+          onChange={(e) => {
+            onChange(e.target.value);
+            setIsOpen(true);
+            setHighlightedIndex(-1);
+          }}
+          onFocus={() => setIsOpen(true)}
+          onClick={() => setIsOpen(true)}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          required={required}
+          autoComplete="off"
+        />
+        <button
+          type="button"
+          className="btn btn-light border dropdown-toggle dropdown-toggle-split text-muted px-2"
+          onClick={() => {
+            setIsOpen((prev) => !prev);
+            if (!isOpen && inputRef.current) {
+              inputRef.current.focus();
+            }
+          }}
+          title="Choose from common services"
+          tabIndex={-1}
+        >
+          <span className="visually-hidden">Toggle Dropdown</span>
+        </button>
+      </div>
+
+      {isOpen && (
+        <ul
+          className="dropdown-menu show shadow w-100 mt-1 py-1"
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            zIndex: 1060,
+            maxHeight: '220px',
+            overflowY: 'auto'
+          }}
+        >
+          <li className="dropdown-header text-uppercase small fw-bold text-muted py-1 px-3">
+            Common Services
+          </li>
+          {filteredServices.length > 0 ? (
+            filteredServices.map((srvName, idx) => {
+              const isSelected = value === srvName;
+              const isHighlighted = idx === highlightedIndex;
+              return (
+                <li key={srvName}>
+                  <button
+                    type="button"
+                    className={`dropdown-item small py-1 px-3 d-flex justify-content-between align-items-center ${
+                      isSelected ? 'active fw-semibold' : isHighlighted ? 'bg-light text-primary' : ''
+                    }`}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleSelect(srvName);
+                    }}
+                  >
+                    <span>{srvName}</span>
+                    {isSelected && <span className="ms-2">✓</span>}
+                  </button>
+                </li>
+              );
+            })
+          ) : (
+            <li>
+              <span className="dropdown-item-text text-muted small py-1 px-3 fst-italic">
+                Custom service: &ldquo;{value}&rdquo;
+              </span>
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+};
 
 const JobCardForm = () => {
   const { id } = useParams();
@@ -56,7 +227,7 @@ const JobCardForm = () => {
             workDescription: jobCard.workDescription || '',
             estimatedCost: jobCard.estimatedCost || '',
             estimatedDeliveryDate: jobCard.estimatedDeliveryDate
-              ? new Date(jobCard.estimatedDeliveryDate).toISOString().split('T')[0]
+              ? getIndiaDateStr(jobCard.estimatedDeliveryDate)
               : '',
             priority: jobCard.priority || 'Medium',
             status: jobCard.status || 'Pending',
@@ -70,7 +241,11 @@ const JobCardForm = () => {
               gstPercent: p.gstPercent || 18,
               quantityAvailable: p.part?.quantityAvailable !== undefined ? p.part.quantityAvailable : 999
             })) : [],
-            servicesPerformed: jobCard.servicesPerformed || [],
+            servicesPerformed: (jobCard.servicesPerformed || []).map(s => ({
+              ...s,
+              labourCharge: s.labourCharge === 0 ? '' : s.labourCharge,
+              washingCharge: s.washingCharge === 0 ? '' : s.washingCharge,
+            })),
             odometerAtService: jobCard.odometerAtService || ''
           });
         } else {
@@ -111,7 +286,8 @@ const JobCardForm = () => {
 
     const existingIndex = formData.partsUsed.findIndex(p => p.part === selectedPartToAdd);
     const existingQty = existingIndex > -1 ? formData.partsUsed[existingIndex].quantity : 0;
-    const totalQty = existingQty + parseInt(partQuantityToAdd, 10);
+    const qty = parseInt(partQuantityToAdd, 10) || 1;
+    const totalQty = existingQty + qty;
 
     // Validate stock
     if (part.quantityAvailable < totalQty) {
@@ -128,7 +304,7 @@ const JobCardForm = () => {
         part: part._id,
         partName: part.partName,
         partNumber: part.partNumber,
-        quantity: parseInt(partQuantityToAdd, 10),
+        quantity: qty,
         sellingPrice: part.sellingPrice,
         gstPercent: part.gstPercent,
         quantityAvailable: part.quantityAvailable
@@ -150,7 +326,7 @@ const JobCardForm = () => {
   const handleAddService = () => {
     setFormData(prev => ({
       ...prev,
-      servicesPerformed: [...prev.servicesPerformed, { serviceName: '', labourCharge: 0, washingCharge: 0 }]
+      servicesPerformed: [...prev.servicesPerformed, { serviceName: '', labourCharge: '', washingCharge: '' }]
     }));
   };
 
@@ -163,7 +339,21 @@ const JobCardForm = () => {
 
   const handleServiceChange = (index, field, value) => {
     const updatedServices = [...formData.servicesPerformed];
-    updatedServices[index][field] = field === 'serviceName' ? value : parseFloat(value) || 0;
+    if (field === 'serviceName') {
+      updatedServices[index][field] = value;
+    } else {
+      // Allow clearing input cleanly without forcing zero
+      if (value === '' || value === undefined) {
+        updatedServices[index][field] = '';
+      } else {
+        const num = parseFloat(value);
+        if (!isNaN(num) && num < 0) {
+          updatedServices[index][field] = '0';
+        } else {
+          updatedServices[index][field] = value;
+        }
+      }
+    }
     setFormData(prev => ({ ...prev, servicesPerformed: updatedServices }));
   };
 
@@ -181,9 +371,14 @@ const JobCardForm = () => {
       odometerAtService: formData.odometerAtService ? Number(formData.odometerAtService) : undefined,
       partsUsed: formData.partsUsed.map(p => ({
         part: p.part,
-        quantity: p.quantity
+        quantity: parseInt(p.quantity, 10) || 1
       })),
-      servicesPerformed: formData.servicesPerformed
+      servicesPerformed: formData.servicesPerformed.map(s => ({
+        serviceName: s.serviceName,
+        labourCharge: parseFloat(s.labourCharge) || 0,
+        washingCharge: parseFloat(s.washingCharge) || 0,
+        isFreeService: s.isFreeService || false
+      }))
     };
 
     try {
@@ -204,11 +399,11 @@ const JobCardForm = () => {
 
   // Calculations for Pricing Summary
   const laborCost = formData.servicesPerformed.length > 0 
-    ? formData.servicesPerformed.reduce((sum, s) => sum + s.labourCharge + s.washingCharge, 0)
+    ? formData.servicesPerformed.reduce((sum, s) => sum + (parseFloat(s.labourCharge) || 0) + (parseFloat(s.washingCharge) || 0), 0)
     : (parseFloat(formData.estimatedCost) || 0);
   
-  const partsExcludingTax = formData.partsUsed.reduce((sum, p) => sum + (p.sellingPrice * p.quantity), 0);
-  const partsTaxAmount = formData.partsUsed.reduce((sum, p) => sum + (p.sellingPrice * p.quantity * p.gstPercent / 100), 0);
+  const partsExcludingTax = formData.partsUsed.reduce((sum, p) => sum + (p.sellingPrice * (Number(p.quantity) || 0)), 0);
+  const partsTaxAmount = formData.partsUsed.reduce((sum, p) => sum + (p.sellingPrice * (Number(p.quantity) || 0) * p.gstPercent / 100), 0);
   const partsIncludingTax = partsExcludingTax + partsTaxAmount;
   const grandTotal = laborCost + partsIncludingTax;
 
@@ -248,7 +443,7 @@ const JobCardForm = () => {
                   <option value="">-- Select an Approved Request --</option>
                   {approvedAppointments.map((appt) => (
                     <option key={appt._id} value={appt._id}>
-                      {new Date(appt.appointmentDate).toLocaleDateString()} - {appt.serviceType} (Customer: {appt.customer?.fullName})
+                      {formatDateIST(appt.appointmentDate)} - {appt.serviceType} (Customer: {appt.customer?.fullName})
                     </option>
                   ))}
                 </select>
@@ -326,6 +521,7 @@ const JobCardForm = () => {
                 name="odometerAtService"
                 value={formData.odometerAtService}
                 onChange={handleChange}
+                onFocus={(e) => e.target.select()}
                 placeholder="e.g. 15000"
               />
               <div className="form-text text-muted">Required if updating Odometer History</div>
@@ -343,6 +539,7 @@ const JobCardForm = () => {
                 name="estimatedCost"
                 value={formData.estimatedCost}
                 onChange={handleChange}
+                onFocus={(e) => e.target.select()}
                 required
                 placeholder="0.00"
               />
@@ -371,10 +568,10 @@ const JobCardForm = () => {
                 <option value="In Progress">In Progress</option>
                 <option value="Waiting for Parts">Waiting for Parts</option>
                 <option value="Completed">Completed</option>
-                <option value="Delivered">Delivered</option>
+                {formData.status === 'Delivered' && <option value="Delivered">Delivered</option>}
                 <option value="Cancelled">Cancelled</option>
               </select>
-              {isEdit && <div className="form-text text-muted">Must follow: Pending &rarr; Assigned &rarr; In Progress &rarr; Completed &rarr; Delivered</div>}
+              {isEdit && <div className="form-text text-muted">Must follow: Pending &rarr; Assigned &rarr; In Progress &rarr; Completed</div>}
             </div>
 
             <div className="col-md-6">
@@ -403,7 +600,7 @@ const JobCardForm = () => {
                   No specific services added. General estimated cost will be used.
                 </div>
               ) : (
-                <div className="table-responsive border rounded bg-white mb-3">
+                <div className="border rounded bg-white mb-3" style={{ overflow: 'visible' }}>
                   <Table className="mb-0 align-middle small table-hover">
                     <thead className="table-light text-muted">
                       <tr>
@@ -418,12 +615,10 @@ const JobCardForm = () => {
                       {formData.servicesPerformed.map((srv, idx) => (
                         <tr key={idx}>
                           <td>
-                            <input
-                              type="text"
-                              className="form-control form-control-sm"
+                            <ServiceSelect
                               value={srv.serviceName}
-                              onChange={(e) => handleServiceChange(idx, 'serviceName', e.target.value)}
-                              placeholder="e.g. Engine Oil Change"
+                              onChange={(val) => handleServiceChange(idx, 'serviceName', val)}
+                              placeholder="Select or enter service (e.g. Oil Change)"
                               required
                             />
                           </td>
@@ -431,18 +626,24 @@ const JobCardForm = () => {
                             <input
                               type="number"
                               min="0"
+                              step="any"
+                              placeholder="0"
                               className="form-control form-control-sm"
-                              value={srv.labourCharge}
+                              value={srv.labourCharge ?? ''}
                               onChange={(e) => handleServiceChange(idx, 'labourCharge', e.target.value)}
+                              onFocus={(e) => e.target.select()}
                             />
                           </td>
                           <td>
                             <input
                               type="number"
                               min="0"
+                              step="any"
+                              placeholder="0"
                               className="form-control form-control-sm"
-                              value={srv.washingCharge}
+                              value={srv.washingCharge ?? ''}
                               onChange={(e) => handleServiceChange(idx, 'washingCharge', e.target.value)}
+                              onFocus={(e) => e.target.select()}
                             />
                           </td>
                           <td>
@@ -498,7 +699,11 @@ const JobCardForm = () => {
                     min="1"
                     className="form-control"
                     value={partQuantityToAdd}
-                    onChange={(e) => setPartQuantityToAdd(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setPartQuantityToAdd(v === '' ? '' : Math.max(1, parseInt(v, 10) || 1));
+                    }}
                   />
                 </Col>
 
@@ -547,8 +752,16 @@ const JobCardForm = () => {
                               className="form-control form-control-sm"
                               style={{ width: '70px' }}
                               value={p.quantity}
+                              onFocus={(e) => e.target.select()}
                               onChange={(e) => {
-                                const val = Math.max(1, parseInt(e.target.value, 10) || 1);
+                                const v = e.target.value;
+                                if (v === '') {
+                                  const updatedParts = [...formData.partsUsed];
+                                  updatedParts[idx].quantity = '';
+                                  setFormData(prev => ({ ...prev, partsUsed: updatedParts }));
+                                  return;
+                                }
+                                const val = Math.max(1, parseInt(v, 10) || 1);
                                 if (val > p.quantityAvailable) {
                                   toast.error(`Only ${p.quantityAvailable} items available in stock!`);
                                   return;

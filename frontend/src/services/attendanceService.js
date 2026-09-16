@@ -34,6 +34,11 @@ const getTodayMechanicAvailability = async () => {
   return response.data;
 };
 
+const markAttendance = async (data) => {
+  const response = await api.post('/attendance/mark', data);
+  return response.data;
+};
+
 const attendanceService = {
   checkIn,
   checkOut,
@@ -41,6 +46,7 @@ const attendanceService = {
   getMechanicAttendanceHistory,
   getAdminAttendanceSummary,
   getTodayMechanicAvailability,
+  markAttendance,
 };
 
 export default attendanceService;

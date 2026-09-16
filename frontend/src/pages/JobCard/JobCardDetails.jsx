@@ -4,7 +4,8 @@ import { Row, Col, Card, Table, Badge, Button, Modal, Form, Spinner } from 'reac
 import { 
   FaArrowLeft, FaEdit, FaFileInvoiceDollar, FaWrench, 
   FaCar, FaUser, FaClipboardList, FaClock, FaCheckCircle, 
-  FaExclamationTriangle, FaCalendarAlt, FaTools, FaPrint, FaPlus, FaUndo 
+  FaExclamationTriangle, FaCalendarAlt, FaTools, FaPrint, FaPlus, FaUndo,
+  FaLightbulb, FaGasPump, FaTachometerAlt, FaCheck, FaTimes 
 } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import jobCardService from '../../services/jobCardService';
@@ -14,6 +15,7 @@ import billingService from '../../services/billingService';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
 import { AuthContext } from '../../context/AuthContext';
 import SparePartsTabs from './SparePartsTabs';
+import { formatDateIST, formatDateTimeIST } from '../../utils/dateUtils';
 
 const JobCardDetails = () => {
   const { id } = useParams();
@@ -38,6 +40,17 @@ const JobCardDetails = () => {
   const [selectedRequestToReturn, setSelectedRequestToReturn] = useState(null);
   const [returnQty, setReturnQty] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+
+  // Additional recommendations state
+  const [showRecModal, setShowRecModal] = useState(false);
+  const [recData, setRecData] = useState({
+    serviceName: '',
+    reason: '',
+    estimatedLabour: 0,
+    estimatedParts: 0
+  });
+  const [submittingRec, setSubmittingRec] = useState(false);
+  const [processingApproval, setProcessingApproval] = useState(false);
 
   const fetchJobCardAndRequests = async () => {
     try {
@@ -124,6 +137,47 @@ const JobCardDetails = () => {
       toast.error(error.response?.data?.message || 'Failed to generate invoice');
     } finally {
       setGeneratingInvoice(false);
+    }
+  };
+
+  const handleAddRecommendation = async (e) => {
+    e.preventDefault();
+    if (!recData.serviceName.trim() || !recData.reason.trim()) {
+      toast.warning('Please enter both service name and reason');
+      return;
+    }
+
+    try {
+      setSubmittingRec(true);
+      const total = Number(recData.estimatedLabour || 0) + Number(recData.estimatedParts || 0);
+      await jobCardService.addRecommendation(id, {
+        serviceName: recData.serviceName.trim(),
+        reason: recData.reason.trim(),
+        estimatedLabour: Number(recData.estimatedLabour || 0),
+        estimatedParts: Number(recData.estimatedParts || 0),
+        estimatedTotal: total
+      });
+      toast.success('Additional service recommendation submitted for customer approval');
+      setShowRecModal(false);
+      setRecData({ serviceName: '', reason: '', estimatedLabour: 0, estimatedParts: 0 });
+      fetchJobCardAndRequests();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to add recommendation');
+    } finally {
+      setSubmittingRec(false);
+    }
+  };
+
+  const handleRespondRecommendation = async (recId, action) => {
+    try {
+      setProcessingApproval(true);
+      await jobCardService.respondToRecommendation(id, recId, { action });
+      toast.success(`Recommendation ${action === 'Approve' ? 'approved' : 'declined'} successfully`);
+      fetchJobCardAndRequests();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to process recommendation');
+    } finally {
+      setProcessingApproval(false);
     }
   };
 
@@ -242,7 +296,7 @@ const JobCardDetails = () => {
             <h2 className="fw-bold m-0 text-navy d-flex align-items-center gap-2">
               Job Card: {jobCard.jobNumber}
             </h2>
-            <p className="text-muted mb-0">Created on {new Date(jobCard.createdAt).toLocaleDateString()}</p>
+            <p className="text-muted mb-0">Created on {formatDateIST(jobCard.createdAt)}</p>
           </div>
         </div>
 
@@ -305,26 +359,26 @@ const JobCardDetails = () => {
                   <div className="text-muted small mb-1">Estimated Delivery Date</div>
                   <div className="fw-bold text-dark d-flex align-items-center gap-2">
                     <FaCalendarAlt size={14} className="text-muted" />
-                    {jobCard.estimatedDeliveryDate ? new Date(jobCard.estimatedDeliveryDate).toLocaleDateString() : 'N/A'}
+                    {jobCard.estimatedDeliveryDate ? formatDateIST(jobCard.estimatedDeliveryDate) : 'N/A'}
                   </div>
                 </Col>
 
                 {jobCard.startTime && (
                   <Col xs={12} md={4}>
                     <div className="text-muted small mb-1">Service Started At</div>
-                    <div className="fw-bold text-dark"><small>{new Date(jobCard.startTime).toLocaleString()}</small></div>
+                    <div className="fw-bold text-dark"><small>{formatDateTimeIST(jobCard.startTime)}</small></div>
                   </Col>
                 )}
                 {jobCard.completionTime && (
                   <Col xs={12} md={4}>
                     <div className="text-muted small mb-1">Service Completed At</div>
-                    <div className="fw-bold text-dark"><small>{new Date(jobCard.completionTime).toLocaleString()}</small></div>
+                    <div className="fw-bold text-dark"><small>{formatDateTimeIST(jobCard.completionTime)}</small></div>
                   </Col>
                 )}
                 {jobCard.deliveryTime && (
                   <Col xs={12} md={4}>
                     <div className="text-muted small mb-1">Vehicle Delivered At</div>
-                    <div className="fw-bold text-dark"><small>{new Date(jobCard.deliveryTime).toLocaleString()}</small></div>
+                    <div className="fw-bold text-dark"><small>{formatDateTimeIST(jobCard.deliveryTime)}</small></div>
                   </Col>
                 )}
               </Row>
@@ -351,6 +405,196 @@ const JobCardDetails = () => {
                   <div className="p-3 bg-light rounded text-muted small">
                     {jobCard.notes}
                   </div>
+                </div>
+              )}
+            </Card.Body>
+          </Card>
+
+          {/* Services Performed & Catalogue Rates */}
+          {jobCard.servicesPerformed && jobCard.servicesPerformed.length > 0 && (
+            <Card className="bg-card border-0 shadow-sm mb-4">
+              <Card.Body className="p-4">
+                <div className="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
+                  <h6 className="fw-bold text-navy mb-0 d-flex align-items-center gap-2">
+                    <FaWrench className="text-primary" /> Service Packages & Labour Breakdown
+                  </h6>
+                  <Badge bg="light" text="dark" className="border">
+                    {jobCard.servicesPerformed.length} Services
+                  </Badge>
+                </div>
+                <div className="table-responsive">
+                  <Table className="table-sm align-middle mb-0">
+                    <thead>
+                      <tr className="text-muted small">
+                        <th>Service Name</th>
+                        <th className="text-end">Labour</th>
+                        <th className="text-end">Washing</th>
+                        <th className="text-center">Free Service</th>
+                        <th className="text-end">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {jobCard.servicesPerformed.map((srv, idx) => {
+                        const total = srv.isFreeService ? 0 : (srv.labourCharge || 0) + (srv.washingCharge || 0);
+                        return (
+                          <tr key={idx}>
+                            <td className="fw-semibold text-dark">{srv.serviceName}</td>
+                            <td className="text-end text-muted">₹{(srv.labourCharge || 0).toFixed(2)}</td>
+                            <td className="text-end text-muted">₹{(srv.washingCharge || 0).toFixed(2)}</td>
+                            <td className="text-center">
+                              {srv.isFreeService ? (
+                                <Badge bg="success">100% Free</Badge>
+                              ) : (
+                                <span className="text-muted small">Standard</span>
+                              )}
+                            </td>
+                            <td className="text-end fw-bold text-navy">₹{total.toFixed(2)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </Table>
+                </div>
+              </Card.Body>
+            </Card>
+          )}
+
+          {/* Initial Vehicle Inspection Card */}
+          {jobCard.inspectionDetails && Object.keys(jobCard.inspectionDetails).length > 0 && (
+            <Card className="bg-card border-0 shadow-sm mb-4">
+              <Card.Body className="p-4">
+                <div className="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
+                  <h6 className="fw-bold text-navy mb-0 d-flex align-items-center gap-2">
+                    <FaClipboardList className="text-orange" /> Intake 9-Point Vehicle Inspection
+                  </h6>
+                  <Badge bg="light" text="dark" className="border">
+                    <FaTachometerAlt className="me-1" /> Odometer: {jobCard.inspectionDetails.odometerReading || jobCard.odometerAtService || 'N/A'} km
+                  </Badge>
+                </div>
+                <Row className="g-3 small">
+                  <Col xs={6} md={4}>
+                    <div className="text-muted">1. Engine Oil</div>
+                    <div className="fw-bold text-dark">{jobCard.inspectionDetails.engineOil || 'Standard'}</div>
+                  </Col>
+                  <Col xs={6} md={4}>
+                    <div className="text-muted">2. Brakes</div>
+                    <div className="fw-bold text-dark">{jobCard.inspectionDetails.brakes || 'Standard'}</div>
+                  </Col>
+                  <Col xs={6} md={4}>
+                    <div className="text-muted">3. Tyres</div>
+                    <div className="fw-bold text-dark">{jobCard.inspectionDetails.tyres || 'Standard'}</div>
+                  </Col>
+                  <Col xs={6} md={4}>
+                    <div className="text-muted">4. Battery</div>
+                    <div className="fw-bold text-dark">{jobCard.inspectionDetails.battery || 'Standard'}</div>
+                  </Col>
+                  <Col xs={6} md={4}>
+                    <div className="text-muted">5. Lights</div>
+                    <div className="fw-bold text-dark">{jobCard.inspectionDetails.lights || 'Standard'}</div>
+                  </Col>
+                  <Col xs={6} md={4}>
+                    <div className="text-muted">6. Exterior</div>
+                    <div className="fw-bold text-dark">{jobCard.inspectionDetails.exteriorCondition || 'Standard'}</div>
+                  </Col>
+                  <Col xs={6} md={4}>
+                    <div className="text-muted">7. Fuel Level</div>
+                    <div className="fw-bold text-primary">{jobCard.inspectionDetails.fuelLevel || '50%'}</div>
+                  </Col>
+                  <Col xs={12} md={8}>
+                    <div className="text-muted">8 & 9. Inspection Remarks</div>
+                    <div className="text-dark">{jobCard.inspectionDetails.remarks || 'No special intake damages noted.'}</div>
+                  </Col>
+                </Row>
+              </Card.Body>
+            </Card>
+          )}
+
+          {/* Additional Service Recommendations Card */}
+          <Card className="bg-card border-0 shadow-sm mb-4">
+            <Card.Body className="p-4">
+              <div className="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
+                <div>
+                  <h6 className="fw-bold text-navy mb-0 d-flex align-items-center gap-2">
+                    <FaLightbulb className="text-warning" /> Additional Service Recommendations
+                  </h6>
+                  <div className="small text-muted">Extra repair recommendations require explicit customer approval before execution.</div>
+                </div>
+                {(isAdmin || isMechanic) && !['Completed', 'Delivered', 'Cancelled'].includes(jobCard.status) && (
+                  <Button 
+                    size="sm" 
+                    variant="outline-primary" 
+                    className="d-flex align-items-center gap-1"
+                    onClick={() => setShowRecModal(true)}
+                  >
+                    <FaPlus size={10} /> <span>Recommend Service</span>
+                  </Button>
+                )}
+              </div>
+
+              {(!jobCard.additionalRecommendations || jobCard.additionalRecommendations.length === 0) ? (
+                <div className="text-muted small py-3 text-center bg-light rounded">
+                  No additional service recommendations recorded during this maintenance.
+                </div>
+              ) : (
+                <div className="d-flex flex-column gap-3">
+                  {jobCard.additionalRecommendations.map((rec) => {
+                    const isPending = rec.status === 'Pending Customer Approval';
+                    const isApproved = rec.status === 'Approved';
+                    const isRejected = rec.status === 'Rejected';
+
+                    return (
+                      <div 
+                        key={rec._id} 
+                        className={`p-3 rounded border ${
+                          isPending ? 'border-warning bg-warning bg-opacity-10' : 
+                          isApproved ? 'border-success bg-success bg-opacity-10' : 
+                          'border-secondary bg-light'
+                        }`}
+                      >
+                        <div className="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+                          <div>
+                            <span className="fw-bold text-dark fs-6">{rec.serviceName}</span>
+                            <div className="small text-muted">{rec.reason}</div>
+                          </div>
+                          <div>
+                            {isPending && <Badge bg="warning" text="dark">Pending Customer Approval</Badge>}
+                            {isApproved && <Badge bg="success">Approved</Badge>}
+                            {isRejected && <Badge bg="secondary">Declined (₹0 Added)</Badge>}
+                          </div>
+                        </div>
+
+                        <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 pt-2 border-top border-secondary border-opacity-25 small">
+                          <div className="text-muted">
+                            Labour: ₹{rec.estimatedLabour || 0} &bull; Parts: ₹{rec.estimatedParts || 0} &bull; <strong className="text-navy">Total: ₹{rec.estimatedTotal || 0}</strong>
+                          </div>
+
+                          {/* Approval Actions: Customer can approve/reject, or Advisor can record customer decision */}
+                          {isPending && (
+                            <div className="d-flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="success"
+                                className="py-1 px-3 d-flex align-items-center gap-1"
+                                disabled={processingApproval}
+                                onClick={() => handleRespondRecommendation(rec._id, 'Approve')}
+                              >
+                                <FaCheck size={12} /> <span>Approve Work</span>
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline-danger"
+                                className="py-1 px-3 d-flex align-items-center gap-1"
+                                disabled={processingApproval}
+                                onClick={() => handleRespondRecommendation(rec._id, 'Reject')}
+                              >
+                                <FaTimes size={12} /> <span>Decline</span>
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </Card.Body>
@@ -562,6 +806,85 @@ const JobCardDetails = () => {
             <Button variant="secondary" onClick={() => setShowReturnModal(false)} disabled={submitting}>Cancel</Button>
             <Button type="submit" className="btn-primary-custom border-0" disabled={submitting}>
               {submitting ? <Spinner size="sm" animation="border" /> : 'Submit Return'}
+            </Button>
+          </Modal.Footer>
+        </Form>
+      </Modal>
+
+      {/* Additional Service Recommendation Modal */}
+      <Modal show={showRecModal} onHide={() => setShowRecModal(false)} centered>
+        <Modal.Header closeButton className="bg-light">
+          <Modal.Title className="fs-5 fw-bold text-navy">
+            <FaLightbulb className="text-warning me-2" /> Recommend Additional Service
+          </Modal.Title>
+        </Modal.Header>
+        <Form onSubmit={handleAddRecommendation}>
+          <Modal.Body className="p-4">
+            <p className="small text-muted mb-3">
+              Recommendations submitted here will be sent to the customer for approval. No additional labour or parts will be charged without customer consent.
+            </p>
+
+            <Form.Group className="mb-3">
+              <Form.Label className="fw-medium">Service / Repair Name</Form.Label>
+              <Form.Control
+                type="text"
+                placeholder="e.g. Front Brake Pad Replacement, AC Compressor Flush"
+                value={recData.serviceName}
+                onChange={(e) => setRecData(prev => ({ ...prev, serviceName: e.target.value }))}
+                required
+              />
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label className="fw-medium">Diagnosis & Reason for Recommendation</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={2}
+                placeholder="e.g. During brake inspection, front pads measured below 2mm minimum safety threshold..."
+                value={recData.reason}
+                onChange={(e) => setRecData(prev => ({ ...prev, reason: e.target.value }))}
+                required
+              />
+            </Form.Group>
+
+            <Row className="g-3 mb-3">
+              <Col xs={6}>
+                <Form.Group>
+                  <Form.Label className="fw-medium small">Estimated Labour (₹)</Form.Label>
+                  <Form.Control
+                    type="number"
+                    min="0"
+                    value={recData.estimatedLabour}
+                    onChange={(e) => setRecData(prev => ({ ...prev, estimatedLabour: Number(e.target.value) || 0 }))}
+                  />
+                </Form.Group>
+              </Col>
+              <Col xs={6}>
+                <Form.Group>
+                  <Form.Label className="fw-medium small">Estimated Parts (₹)</Form.Label>
+                  <Form.Control
+                    type="number"
+                    min="0"
+                    value={recData.estimatedParts}
+                    onChange={(e) => setRecData(prev => ({ ...prev, estimatedParts: Number(e.target.value) || 0 }))}
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <div className="p-3 bg-light rounded d-flex justify-content-between align-items-center">
+              <span className="fw-bold text-navy">Total Estimated Addition:</span>
+              <span className="fw-bold fs-5 text-primary">
+                ₹{(Number(recData.estimatedLabour || 0) + Number(recData.estimatedParts || 0)).toFixed(2)}
+              </span>
+            </div>
+          </Modal.Body>
+          <Modal.Footer className="bg-light">
+            <Button variant="secondary" onClick={() => setShowRecModal(false)} disabled={submittingRec}>
+              Cancel
+            </Button>
+            <Button type="submit" className="btn-primary-custom border-0" disabled={submittingRec || !recData.serviceName || !recData.reason}>
+              {submittingRec ? <Spinner size="sm" animation="border" /> : 'Send for Approval'}
             </Button>
           </Modal.Footer>
         </Form>

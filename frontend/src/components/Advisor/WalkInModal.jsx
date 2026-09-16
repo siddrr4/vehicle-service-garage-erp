@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Modal, Button, Form, Row, Col, Alert, Badge } from 'react-bootstrap';
 import { FaUserPlus, FaSearch, FaCar, FaClock, FaCheckCircle, FaExclamationTriangle } from 'react-icons/fa';
 import { toast } from 'react-toastify';
@@ -6,9 +7,10 @@ import api from '../../services/api';
 import appointmentService from '../../services/appointmentService';
 import waitlistService from '../../services/waitlistService';
 import * as customerService from '../../services/customerService';
+import { getIndiaDateStr } from '../../utils/dateUtils';
 
 const WalkInModal = ({ show, onHide, onSuccess }) => {
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getIndiaDateStr();
 
   const [step, setStep] = useState('customer'); // customer, vehicle, booking, noCapacity
   const [loading, setLoading] = useState(false);
@@ -265,7 +267,7 @@ const WalkInModal = ({ show, onHide, onSuccess }) => {
   const handleNextDate = () => {
     const tmr = new Date();
     tmr.setDate(tmr.getDate() + 1);
-    const tmrStr = tmr.toISOString().split('T')[0];
+    const tmrStr = getIndiaDateStr(tmr);
     setPreferredDate(tmrStr);
     setStep('booking');
   };
@@ -278,6 +280,12 @@ const WalkInModal = ({ show, onHide, onSuccess }) => {
         </Modal.Title>
       </Modal.Header>
       <Modal.Body className="p-4">
+        <div className="alert alert-info py-2 px-3 mb-3 d-flex justify-content-between align-items-center">
+          <span className="small text-navy fw-semibold">Want complete 9-point vehicle inspection & dynamic service selection?</span>
+          <Link to="/walk-in" onClick={onHide} className="btn btn-sm btn-primary py-1 px-3 text-nowrap">
+            Open Walk-in Desk &rarr;
+          </Link>
+        </div>
 
         {/* Step 1: Customer Selection or Registration */}
         {step === 'customer' && (
@@ -505,14 +513,16 @@ const WalkInModal = ({ show, onHide, onSuccess }) => {
                         <div 
                           className={`p-3 border rounded text-center cursor-pointer ${
                             preferredTime === slot.time ? 'border-primary bg-primary bg-opacity-10 fw-bold' : ''
-                          } ${slot.status === 'FULL' ? 'bg-light text-muted opacity-75' : ''}`}
-                          style={{ cursor: slot.status === 'FULL' ? 'not-allowed' : 'pointer' }}
+                          } ${slot.available <= 0 ? 'bg-light text-muted opacity-75' : ''}`}
+                          style={{ cursor: slot.available <= 0 ? 'not-allowed' : 'pointer' }}
                           onClick={() => {
-                            if (slot.status !== 'FULL') setPreferredTime(slot.time);
+                            if (slot.available > 0) setPreferredTime(slot.time);
                           }}
                         >
                           <div className="small fw-bold">{slot.time}</div>
-                          {slot.status === 'FULL' ? (
+                          {slot.status === 'No Capacity' || slot.capacity === 0 ? (
+                            <Badge bg="secondary" className="mt-1">No Capacity</Badge>
+                          ) : slot.available === 0 ? (
                             <Badge bg="danger" className="mt-1">FULL</Badge>
                           ) : (
                             <Badge bg="success" className="mt-1">{slot.available} slot(s) left</Badge>

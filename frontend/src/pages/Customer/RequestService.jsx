@@ -5,6 +5,7 @@ import api from '../../services/api';
 import appointmentService from '../../services/appointmentService';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
 import { toast } from 'react-toastify';
+import { getIndiaDateStr } from '../../utils/dateUtils';
 
 const RequestService = () => {
   const navigate = useNavigate();
@@ -14,7 +15,7 @@ const RequestService = () => {
   const [availableSlots, setAvailableSlots] = useState([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getIndiaDateStr();
 
   const [formData, setFormData] = useState({
     vehicleId: '',
@@ -170,9 +171,9 @@ const RequestService = () => {
                       <option 
                         key={slot.time} 
                         value={slot.time} 
-                        disabled={slot.status === 'FULL'}
+                        disabled={slot.available <= 0}
                       >
-                        {slot.time} — {slot.status === 'FULL' ? 'FULL' : `${slot.available} slot(s) available`}
+                        {slot.time} — {slot.status === 'No Capacity' || slot.capacity === 0 ? 'No Capacity' : (slot.available === 0 ? 'FULL' : `${slot.available} slot(s) available`)}
                       </option>
                     ))}
                   </select>

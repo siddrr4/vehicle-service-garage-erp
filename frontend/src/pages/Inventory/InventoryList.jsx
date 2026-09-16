@@ -8,6 +8,8 @@ import {
 import { toast } from 'react-toastify';
 import sparePartService from '../../services/sparePartService';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
+import PageHeader from '../../components/UI/PageHeader';
+import EmptyState from '../../components/UI/EmptyState';
 
 const categories = [
   'Engine Parts',
@@ -244,104 +246,106 @@ const InventoryList = () => {
   const outOfStockAlerts = alertParts.filter(p => p.status === 'Out of Stock');
 
   return (
-    <div className="container-fluid p-0">
+    <div className="container-fluid px-0">
       
       {/* Header and Quick Actions */}
-      <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
-        <div>
-          <h2 className="fw-bold mb-1 text-navy d-flex align-items-center gap-2">
-            <FaWarehouse className="text-primary" /> Spare Parts Inventory
-          </h2>
-          <p className="text-muted mb-0">Track stock levels, pricing, compatible brands, and warehouse locations.</p>
-        </div>
-        
-        <div>
-          <Button onClick={handleOpenAddModal} className="btn-primary-custom d-flex align-items-center gap-2 px-4 py-2 shadow-sm border-0">
+      <PageHeader
+        title="Spare Parts Inventory & Stockroom"
+        subtitle="Track real-time stock levels, procurement pricing, compatible vehicle brands, and warehouse locations"
+        breadcrumbs={[
+          { label: 'Inventory', to: '/inventory' },
+          { label: 'Spare Parts' }
+        ]}
+        actions={
+          <button
+            onClick={handleOpenAddModal}
+            className="btn btn-orange d-flex align-items-center gap-2 shadow-sm"
+          >
             <FaPlus /> <span>Add New Spare Part</span>
-          </Button>
-        </div>
-      </div>
+          </button>
+        }
+      />
 
       {/* Dashboard Stats Cards */}
-      <Row className="g-4 mb-4">
+      <Row className="g-3 mb-4">
         <Col xs={12} sm={6} xl>
-          <Card className="h-100 bg-card border-0 shadow-sm dashboard-card">
-            <Card.Body className="p-4 d-flex justify-content-between align-items-center">
+          <div className="card border-0 shadow-sm rounded-3 h-100">
+            <div className="card-body p-3 d-flex justify-content-between align-items-center">
               <div>
-                <h6 className="text-muted fw-medium mb-1 small text-uppercase">Total Spare Parts</h6>
-                <h3 className="fw-bold mb-0 text-dark">
+                <span className="text-muted fw-bold mb-1 small text-uppercase" style={{ fontSize: '0.72rem', letterSpacing: '0.05em' }}>Total Catalog</span>
+                <h3 className="fw-bold mb-0 text-navy mt-1">
                   {statsLoading ? <Spinner animation="border" size="sm" /> : stats.totalParts}
                 </h3>
               </div>
-              <div className="p-3 bg-primary bg-opacity-10 text-primary rounded-circle">
-                <FaClipboardList size={22} />
+              <div className="p-3 bg-light text-navy rounded-circle border">
+                <FaClipboardList size={20} />
               </div>
-            </Card.Body>
-          </Card>
+            </div>
+          </div>
         </Col>
 
         <Col xs={12} sm={6} xl>
-          <Card className="h-100 bg-card border-0 shadow-sm dashboard-card">
-            <Card.Body className="p-4 d-flex justify-content-between align-items-center">
+          <div className="card border-0 shadow-sm rounded-3 h-100">
+            <div className="card-body p-3 d-flex justify-content-between align-items-center">
               <div>
-                <h6 className="text-muted fw-medium mb-1 small text-uppercase">Low Stock Items</h6>
-                <h3 className="fw-bold mb-0 text-warning">
+                <span className="text-muted fw-bold mb-1 small text-uppercase" style={{ fontSize: '0.72rem', letterSpacing: '0.05em' }}>Low Stock Alert</span>
+                <h3 className="fw-bold mb-0 text-warning mt-1">
                   {statsLoading ? <Spinner animation="border" size="sm" /> : stats.lowStockParts}
                 </h3>
               </div>
-              <div className="p-3 bg-warning bg-opacity-10 text-warning rounded-circle">
-                <FaExclamationTriangle size={22} />
+              <div className="p-3 bg-warning bg-opacity-10 text-warning rounded-circle border border-warning border-opacity-25">
+                <FaExclamationTriangle size={20} />
               </div>
-            </Card.Body>
-          </Card>
+            </div>
+          </div>
         </Col>
 
         <Col xs={12} sm={6} xl>
-          <Card className="h-100 bg-card border-0 shadow-sm dashboard-card">
-            <Card.Body className="p-4 d-flex justify-content-between align-items-center">
+          <div className="card border-0 shadow-sm rounded-3 h-100">
+            <div className="card-body p-3 d-flex justify-content-between align-items-center">
               <div>
-                <h6 className="text-muted fw-medium mb-1 small text-uppercase">Out Of Stock</h6>
-                <h3 className="fw-bold mb-0 text-danger">
+                <span className="text-muted fw-bold mb-1 small text-uppercase" style={{ fontSize: '0.72rem', letterSpacing: '0.05em' }}>Out Of Stock</span>
+                <h3 className="fw-bold mb-0 text-danger mt-1">
                   {statsLoading ? <Spinner animation="border" size="sm" /> : stats.outOfStockParts}
                 </h3>
               </div>
-              <div className="p-3 bg-danger bg-opacity-10 text-danger rounded-circle">
-                <FaBoxes size={22} />
+              <div className="p-3 bg-danger bg-opacity-10 text-danger rounded-circle border border-danger border-opacity-25">
+                <FaBoxes size={20} />
               </div>
-            </Card.Body>
-          </Card>
+            </div>
+          </div>
         </Col>
 
         <Col xs={12} sm={6} xl>
-          <Card className="h-100 bg-card border-0 shadow-sm dashboard-card">
-            <Card.Body className="p-4 d-flex justify-content-between align-items-center">
+          <div className="card border-0 shadow-sm rounded-3 h-100">
+            <div className="card-body p-3 d-flex justify-content-between align-items-center">
               <div>
-                <h6 className="text-muted fw-medium mb-1 small text-uppercase">Inventory Value (Val)</h6>
-                <h3 className="fw-bold mb-0 text-success">
+                <span className="text-muted fw-bold mb-1 small text-uppercase" style={{ fontSize: '0.72rem', letterSpacing: '0.05em' }}>Inventory Value</span>
+                <h3 className="fw-bold mb-0 text-success mt-1">
                   {statsLoading ? <Spinner animation="border" size="sm" /> : `₹${stats.totalInventoryValue.toLocaleString('en-IN')}`}
                 </h3>
               </div>
-              <div className="p-3 bg-success bg-opacity-10 text-success rounded-circle">
-                <FaDollarSign size={22} />
+              <div className="p-3 bg-success bg-opacity-10 text-success rounded-circle border border-success border-opacity-25">
+                <FaDollarSign size={20} />
               </div>
-            </Card.Body>
-          </Card>
+            </div>
+          </div>
         </Col>
 
         <Col xs={12} sm={6} xl>
-          <Card className="h-100 bg-card border-0 shadow-sm dashboard-card">
-            <Card.Body className="p-4 d-flex justify-content-between align-items-center">
+          <div className="card border-0 shadow-sm rounded-3 h-100">
+            <div className="card-body p-3 d-flex justify-content-between align-items-center">
               <div>
-                <h6 className="text-muted fw-medium mb-1 small text-uppercase">Categories</h6>
-                <h3 className="fw-bold mb-0 text-purple" style={{ color: '#6f42c1' }}>
+                <span className="text-muted fw-bold mb-1 small text-uppercase" style={{ fontSize: '0.72rem', letterSpacing: '0.05em' }}>Part Categories</span>
+                <h3 className="fw-bold mb-0 text-primary mt-1">
                   {statsLoading ? <Spinner animation="border" size="sm" /> : stats.categoriesCount}
                 </h3>
               </div>
-              <div className="p-3 bg-purple bg-opacity-10 text-purple rounded-circle" style={{ color: '#6f42c1' }}>
-                <FaTag size={22} />
+              <div className="p-3 bg-primary bg-opacity-10 text-primary rounded-circle border border-primary border-opacity-25">
+                <FaTag size={20} />
               </div>
-            </Card.Body>
-          </Card>
+            </div>
+          </div>
         </Col>
       </Row>
 
@@ -391,84 +395,88 @@ const InventoryList = () => {
       )}
 
       {/* Search and Filters Section */}
-      <div className="bg-card rounded shadow-sm p-4 mb-4">
-        <Form onSubmit={handleSearch}>
-          <Row className="g-3">
-            <Col xs={12} lg={4}>
-              <div className="input-group">
-                <span className="input-group-text bg-light border-end-0">
-                  <FaSearch className="text-muted" />
-                </span>
-                <input
-                  type="text"
-                  className="form-control border-start-0 ps-0"
-                  placeholder="Search by Part Name or Number..."
-                  value={keyword}
-                  onChange={(e) => setKeyword(e.target.value)}
-                />
-              </div>
-            </Col>
-            
-            <Col xs={12} sm={6} lg={2.4} style={{ width: '20%' }} className="filter-col-responsive">
-              <Form.Select 
-                value={categoryFilter}
-                onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
-              >
-                <option value="">All Categories</option>
-                {categories.map((c, i) => (
-                  <option key={i} value={c}>{c}</option>
-                ))}
-              </Form.Select>
-            </Col>
+      <div className="card border-0 shadow-sm rounded-3 mb-4">
+        <div className="card-body p-4">
+          <Form onSubmit={handleSearch}>
+            <Row className="g-3">
+              <Col xs={12} lg={4}>
+                <div className="input-group">
+                  <span className="input-group-text bg-light border-end-0">
+                    <FaSearch className="text-muted" />
+                  </span>
+                  <input
+                    type="text"
+                    className="form-control bg-light border-start-0 ps-0"
+                    placeholder="Search by Part Name or Number..."
+                    value={keyword}
+                    onChange={(e) => setKeyword(e.target.value)}
+                  />
+                </div>
+              </Col>
+              
+              <Col xs={12} sm={6} lg={2.4} style={{ width: '20%' }} className="filter-col-responsive">
+                <Form.Select 
+                  value={categoryFilter}
+                  onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
+                >
+                  <option value="">All Categories</option>
+                  {categories.map((c, i) => (
+                    <option key={i} value={c}>{c}</option>
+                  ))}
+                </Form.Select>
+              </Col>
 
-            <Col xs={12} sm={6} lg={2.4} style={{ width: '15%' }} className="filter-col-responsive">
-              <Form.Select 
-                value={statusFilter}
-                onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-              >
-                <option value="">All Stock Statuses</option>
-                <option value="In Stock">In Stock</option>
-                <option value="Low Stock">Low Stock</option>
-                <option value="Out of Stock">Out of Stock</option>
-              </Form.Select>
-            </Col>
+              <Col xs={12} sm={6} lg={2.4} style={{ width: '15%' }} className="filter-col-responsive">
+                <Form.Select 
+                  value={statusFilter}
+                  onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+                >
+                  <option value="">All Stock Statuses</option>
+                  <option value="In Stock">In Stock</option>
+                  <option value="Low Stock">Low Stock</option>
+                  <option value="Out of Stock">Out of Stock</option>
+                </Form.Select>
+              </Col>
 
-            <Col xs={12} sm={6} lg={2.4} style={{ width: '15%' }} className="filter-col-responsive">
-              <Form.Select 
-                value={`${sortBy}-${sortOrder}`}
-                onChange={(e) => {
-                  const [field, order] = e.target.value.split('-');
-                  setSortBy(field);
-                  setSortOrder(order);
-                  setPage(1);
-                }}
-              >
-                <option value="createdAt-desc">Newest Added</option>
-                <option value="sellingPrice-asc">Price: Low to High</option>
-                <option value="sellingPrice-desc">Price: High to Low</option>
-                <option value="quantityAvailable-asc">Quantity: Low to High</option>
-                <option value="quantityAvailable-desc">Quantity: High to Low</option>
-              </Form.Select>
-            </Col>
+              <Col xs={12} sm={6} lg={2.4} style={{ width: '15%' }} className="filter-col-responsive">
+                <Form.Select 
+                  value={`${sortBy}-${sortOrder}`}
+                  onChange={(e) => {
+                    const [field, order] = e.target.value.split('-');
+                    setSortBy(field);
+                    setSortOrder(order);
+                    setPage(1);
+                  }}
+                >
+                  <option value="createdAt-desc">Newest Added</option>
+                  <option value="sellingPrice-asc">Price: Low to High</option>
+                  <option value="sellingPrice-desc">Price: High to Low</option>
+                  <option value="quantityAvailable-asc">Quantity: Low to High</option>
+                  <option value="quantityAvailable-desc">Quantity: High to Low</option>
+                </Form.Select>
+              </Col>
 
-            <Col xs={12} sm={6} lg className="d-flex gap-2">
-              <Button type="submit" className="btn-navy flex-grow-1">Search</Button>
-              <Button variant="light" className="border" onClick={handleClearFilters}>Clear</Button>
-            </Col>
-          </Row>
-        </Form>
+              <Col xs={12} sm={6} lg className="d-flex gap-2">
+                <Button type="submit" className="btn-navy flex-grow-1">Search</Button>
+                <Button variant="light" className="border" onClick={handleClearFilters}>Clear</Button>
+              </Col>
+            </Row>
+          </Form>
+        </div>
       </div>
 
       {/* Parts Table */}
-      <div className="bg-card rounded shadow-sm overflow-hidden">
+      <div className="card border-0 shadow-sm rounded-3 overflow-hidden">
         {loading ? (
           <div className="p-5"><LoadingSpinner /></div>
         ) : parts.length === 0 ? (
-          <div className="text-center p-5 text-muted">
-            <FaTools size={48} className="mb-3 opacity-50" />
-            <h5>No Spare Parts Found</h5>
-            <p>Try refining your search or add a new part to inventory.</p>
-          </div>
+          <EmptyState
+            icon={FaWarehouse}
+            title="No Spare Parts Found"
+            description={keyword || categoryFilter || statusFilter ? "No parts match the selected filter criteria." : "No spare parts registered in the inventory catalog yet."}
+            actionLabel={keyword || categoryFilter || statusFilter ? "Clear Filters" : "Add New Spare Part"}
+            onAction={keyword || categoryFilter || statusFilter ? handleClearFilters : handleOpenAddModal}
+          />
         ) : (
           <div className="table-responsive">
             <Table hover className="align-middle mb-0 custom-table">

@@ -8,6 +8,8 @@ import {
 import { toast } from 'react-toastify';
 import sparePartRequestService from '../../services/sparePartRequestService';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
+import PageHeader from '../../components/UI/PageHeader';
+import EmptyState from '../../components/UI/EmptyState';
 
 const SparePartRequestsList = () => {
   const [requests, setRequests] = useState([]);
@@ -153,67 +155,71 @@ const SparePartRequestsList = () => {
   };
 
   return (
-    <div className="container-fluid p-0">
+    <div className="container-fluid px-0">
       
       {/* Header */}
-      <div className="mb-4">
-        <h2 className="fw-bold mb-1 text-navy d-flex align-items-center gap-2">
-          <FaClipboardList className="text-primary" /> Spare Parts Requests
-        </h2>
-        <p className="text-muted mb-0">Review and action spare parts requests submitted by mechanics.</p>
-      </div>
+      <PageHeader
+        title="Technician Spare Parts Requisitions"
+        subtitle={`Review, issue, and manage ${total} workshop part requisitions submitted from active job cards`}
+        breadcrumbs={[
+          { label: 'Inventory', to: '/inventory' },
+          { label: 'Part Requests' }
+        ]}
+      />
 
       {/* Filter and Search Bar */}
-      <div className="bg-card rounded shadow-sm p-4 mb-4">
-        <Form onSubmit={handleSearch}>
-          <Row className="g-3">
-            <Col xs={12} md={6}>
-              <div className="input-group">
-                <span className="input-group-text bg-light border-end-0">
-                  <FaSearch className="text-muted" />
-                </span>
-                <input
-                  type="text"
-                  className="form-control border-start-0 ps-0"
-                  placeholder="Search by Job Card, Part Name, Mechanic, Customer..."
-                  value={keyword}
-                  onChange={(e) => setKeyword(e.target.value)}
-                />
-              </div>
-            </Col>
-            
-            <Col xs={12} sm={6} md={3}>
-              <Form.Select 
-                value={statusFilter}
-                onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-              >
-                <option value="">All Statuses</option>
-                <option value="Pending">Pending</option>
-                <option value="Issued">Issued</option>
-                <option value="Rejected">Rejected</option>
-                <option value="Pending Return">Pending Return</option>
-                <option value="Returned">Returned</option>
-              </Form.Select>
-            </Col>
+      <div className="card border-0 shadow-sm rounded-3 mb-4">
+        <div className="card-body p-4">
+          <Form onSubmit={handleSearch}>
+            <Row className="g-3">
+              <Col xs={12} md={6}>
+                <div className="input-group">
+                  <span className="input-group-text bg-light border-end-0">
+                    <FaSearch className="text-muted" />
+                  </span>
+                  <input
+                    type="text"
+                    className="form-control bg-light border-start-0 ps-0"
+                    placeholder="Search by Job Card, Part Name, Mechanic, Customer..."
+                    value={keyword}
+                    onChange={(e) => setKeyword(e.target.value)}
+                  />
+                </div>
+              </Col>
+              
+              <Col xs={12} sm={6} md={3}>
+                <Form.Select 
+                  value={statusFilter}
+                  onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+                >
+                  <option value="">All Statuses</option>
+                  <option value="Pending">Pending</option>
+                  <option value="Issued">Issued</option>
+                  <option value="Rejected">Rejected</option>
+                  <option value="Pending Return">Pending Return</option>
+                  <option value="Returned">Returned</option>
+                </Form.Select>
+              </Col>
 
-            <Col xs={12} sm={6} md={3} className="d-flex gap-2">
-              <Button type="submit" className="btn btn-navy flex-grow-1">Search</Button>
-              <Button variant="light" className="border" onClick={() => { setKeyword(''); setStatusFilter(''); setPage(1); fetchRequests(1, '', ''); }}>Clear</Button>
-            </Col>
-          </Row>
-        </Form>
+              <Col xs={12} sm={6} md={3} className="d-flex gap-2">
+                <Button type="submit" className="btn btn-navy flex-grow-1">Search</Button>
+                <Button variant="light" className="border" onClick={() => { setKeyword(''); setStatusFilter(''); setPage(1); fetchRequests(1, '', ''); }}>Clear</Button>
+              </Col>
+            </Row>
+          </Form>
+        </div>
       </div>
 
       {/* Table */}
-      <div className="bg-card rounded shadow-sm overflow-hidden">
+      <div className="card border-0 shadow-sm rounded-3 overflow-hidden">
         {loading ? (
           <div className="p-5"><LoadingSpinner /></div>
         ) : requests.length === 0 ? (
-          <div className="text-center p-5 text-muted">
-            <FaClipboardList size={48} className="mb-3 opacity-50" />
-            <h5>No Spare Parts Requests Found</h5>
-            <p>Mechanics can request parts from their Job Card details page.</p>
-          </div>
+          <EmptyState
+            icon={FaClipboardList}
+            title="No Spare Parts Requests Found"
+            description="No active parts requisitions match the current criteria. Mechanics can request parts directly from their active job cards."
+          />
         ) : (
           <div className="table-responsive">
             <Table hover className="align-middle mb-0 custom-table text-secondary small">

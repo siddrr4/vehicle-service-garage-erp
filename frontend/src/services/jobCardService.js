@@ -47,12 +47,30 @@ export const deleteJobCard = async (id) => {
   return data;
 };
 
+export const createWalkInJobCard = async (walkInData) => {
+  const { data } = await api.post('/job-cards/walk-in', walkInData);
+  return data;
+};
+
+export const addRecommendation = async (jobCardId, recommendationData) => {
+  const { data } = await api.post(`/job-cards/${jobCardId}/recommendations`, recommendationData);
+  return data;
+};
+
+export const respondToRecommendation = async (jobCardId, recId, action) => {
+  const { data } = await api.put(`/job-cards/${jobCardId}/recommendations/${recId}/approval`, { action });
+  return data;
+};
+
 export default {
   getJobCards,
   getMyJobCards,
   getMechanicJobCards,
   getJobCardById,
   createJobCard,
+  createWalkInJobCard,
+  addRecommendation,
+  respondToRecommendation,
   updateJobCard,
   updateMechanicStatus,
   deleteJobCard,

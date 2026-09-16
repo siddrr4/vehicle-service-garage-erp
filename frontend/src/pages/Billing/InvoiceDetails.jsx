@@ -7,6 +7,7 @@ import billingService from '../../services/billingService';
 import settingService from '../../services/settingService';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
 import { AuthContext } from '../../context/AuthContext';
+import { formatDateIST } from '../../utils/dateUtils';
 
 const InvoiceDetails = () => {
   const { id } = useParams();
@@ -239,7 +240,7 @@ const InvoiceDetails = () => {
               <h1 className="fw-bold text-navy mb-1 tracking-wider text-uppercase" style={{ fontSize: '2.5rem' }}>Tax Invoice</h1>
               <div className="small text-secondary">
                 <div><strong>Invoice No:</strong> {invoice.invoiceNumber}</div>
-                <div><strong>Invoice Date:</strong> {new Date(invoice.createdAt).toLocaleDateString()}</div>
+                <div><strong>Invoice Date:</strong> {formatDateIST(invoice.createdAt)}</div>
                 <div><strong>Status:</strong> <span className={invoice.status === 'Paid' ? 'text-success fw-bold' : 'text-danger fw-bold'}>{invoice.status === 'Unpaid' ? 'Pending' : invoice.status}</span></div>
               </div>
             </Col>
@@ -284,7 +285,7 @@ const InvoiceDetails = () => {
               <div><strong>Job Card No:</strong> {jobCard.jobNumber}</div>
               <div><strong>Complaint:</strong> {jobCard.complaint}</div>
               <div><strong>Mechanic:</strong> {jobCard.assignedMechanic?.fullName || 'N/A'}</div>
-              <div><strong>Service Completion Date:</strong> {jobCard.completionTime ? new Date(jobCard.completionTime).toLocaleDateString() : 'N/A'}</div>
+              <div><strong>Service Completion Date:</strong> {jobCard.completionTime ? formatDateIST(jobCard.completionTime) : 'N/A'}</div>
               {jobCard.workDescription && (
                 <div className="mt-1">
                   <strong>Work Done:</strong> {jobCard.workDescription}
@@ -410,7 +411,7 @@ const InvoiceDetails = () => {
                     <tbody>
                       {invoice.payments.map((pay, i) => (
                         <tr key={i} className="border-bottom">
-                          <td>{new Date(pay.date).toLocaleDateString()}</td>
+                          <td>{formatDateIST(pay.date)}</td>
                           <td>{pay.method}</td>
                           <td className="text-end fw-bold text-dark">₹{pay.amount.toFixed(2)}</td>
                         </tr>

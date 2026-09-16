@@ -8,6 +8,7 @@ import serviceHistoryService from '../../services/serviceHistoryService';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
 import { toast } from 'react-toastify';
 import { AuthContext } from '../../context/AuthContext';
+import { formatDateIST } from '../../utils/dateUtils';
 
 const ServiceHistoryDetails = () => {
   const { id } = useParams();
@@ -42,7 +43,7 @@ const ServiceHistoryDetails = () => {
             Service Record: {jobCard?.jobNumber}
           </h2>
           <p className="text-muted mb-0">
-            <FaCalendarAlt className="me-1" /> Completed on {new Date(history.serviceDate).toLocaleDateString()}
+            <FaCalendarAlt className="me-1" /> Completed on {formatDateIST(history.serviceDate)}
           </p>
         </div>
         <div>

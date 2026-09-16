@@ -6,80 +6,103 @@ import {
   BsPeople, BsBox, BsClipboardData, BsBell, BsStarFill, BsTelephone, BsEnvelope,
   BsClock, BsFacebook, BsTwitter, BsInstagram, BsLinkedin, BsArrowRight, BsCheckCircleFill
 } from 'react-icons/bs';
+import { FaCar, FaWrench, FaShieldAlt, FaCalendarAlt, FaFileInvoiceDollar, FaUsers } from 'react-icons/fa';
 import './LandingPage.css';
 
 const LandingPage = () => {
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
-  const [activeFaq, setActiveFaq] = useState(null);
 
   useEffect(() => {
     const handleScroll = () => {
-      setScrolled(window.scrollY > 50);
+      setScrolled(window.scrollY > 40);
     };
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const toggleFaq = (index) => {
-    setActiveFaq(activeFaq === index ? null : index);
-  };
-
   return (
-    <div className="landing-page cyber-bg-black cyber-grid">
-      {/* SECTION 1: Navbar */}
+    <div className="landing-page">
+      {/* SECTION 1: Top Navigation */}
       <nav className={`navbar navbar-expand-lg fixed-top modern-navbar ${scrolled ? 'scrolled' : ''}`}>
         <div className="container">
-          <Link className="navbar-brand fw-bold fs-4 d-flex align-items-center gap-2 text-white" to="/">
-            <span>//</span> GarageERP
+          <Link className="navbar-brand d-flex align-items-center gap-2" to="/">
+            <div className="bg-orange p-2 rounded-2 text-white d-flex align-items-center justify-content-center" style={{ width: '36px', height: '36px' }}>
+              <FaCar size={18} />
+            </div>
+            <span>GARAGE ERP</span>
           </Link>
-          <button className="navbar-toggler border-0 text-white" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-            <span className="navbar-toggler-icon" style={{filter: 'invert(1)'}}></span>
+          
+          <button 
+            className="navbar-toggler border-0 text-white" 
+            type="button" 
+            data-bs-toggle="collapse" 
+            data-bs-target="#navbarNav"
+            aria-controls="navbarNav"
+            aria-expanded="false"
+            aria-label="Toggle navigation"
+          >
+            <span className="navbar-toggler-icon" style={{ filter: 'invert(1)' }}></span>
           </button>
           
           <div className="collapse navbar-collapse" id="navbarNav">
             <ul className="navbar-nav mx-auto">
               <li className="nav-item"><a className="nav-link" href="#home">Home</a></li>
-              <li className="nav-item"><a className="nav-link" href="#services">Services</a></li>
               <li className="nav-item"><a className="nav-link" href="#features">Features</a></li>
-              <li className="nav-item"><a className="nav-link" href="#about">About</a></li>
+              <li className="nav-item"><a className="nav-link" href="#workflow">Workflow</a></li>
+              <li className="nav-item"><a className="nav-link" href="#enterprise-value">Enterprise</a></li>
+              <li className="nav-item"><a className="nav-link" href="#modules">ERP Modules</a></li>
+              <li className="nav-item"><a className="nav-link" href="#faq">FAQ</a></li>
               <li className="nav-item"><a className="nav-link" href="#contact">Contact</a></li>
             </ul>
-            <div className="d-flex gap-3 align-items-center">
-              <button className="btn btn-cyber-outline py-2 px-4" onClick={() => navigate('/login')}>Login</button>
-              <button className="btn btn-cyber-solid py-2 px-4" onClick={() => navigate('/register')}>Register</button>
+            <div className="d-flex gap-2 align-items-center">
+              <button className="btn btn-outline-light btn-sm px-3" onClick={() => navigate('/login')}>
+                Sign In
+              </button>
+              <button className="btn btn-orange btn-sm px-3" onClick={() => navigate('/register')}>
+                Register
+              </button>
             </div>
           </div>
         </div>
       </nav>
 
-      {/* SECTION 2: Hero */}
-      <section id="home" className="hero-section position-relative overflow-hidden cyber-bg-black">
+      {/* SECTION 2: Hero Section */}
+      <section id="home" className="hero-section">
         <div className="container position-relative z-1">
-          <div className="row align-items-center min-vh-100 pt-5">
-            <div className="col-lg-6 mb-5 mb-lg-0 hero-content text-start">
-              <h1 className="display-4 fw-black text-white mb-4 hero-title">
-                Smart Vehicle Service &<br/>
-                Garage Management ERP
+          <div className="row align-items-center min-vh-100 pt-4 pb-4">
+            <div className="col-lg-6 mb-5 mb-lg-0 text-start">
+              <div className="hero-badge">
+                <FaCar /> Automotive Service & Workshop ERP
+              </div>
+              <h1 className="hero-title mb-3">
+                Intelligent Vehicle Service & Garage Management
               </h1>
-              <p className="lead text-secondary mb-5 pe-lg-5">
-                Manage your vehicles, appointments, repairs, billing, service history and customer communication from one powerful, high-contrast digital console.
+              <p className="hero-lead mb-4 pe-lg-4">
+                Streamline workshop appointments, live technician bays, digital repair job cards, spare parts inventory, and tax invoicing from one centralized enterprise system.
               </p>
               <div className="d-flex flex-wrap gap-3">
-                <button className="btn btn-cyber-solid btn-lg" onClick={() => navigate('/register')}>
-                  Get Started _
+                <button 
+                  className="btn btn-orange btn-lg px-4 shadow"
+                  onClick={() => navigate('/register')}
+                >
+                  GET STARTED
                 </button>
-                <button className="btn btn-cyber-outline btn-lg" onClick={() => navigate('/register')}>
+                <button 
+                  className="btn btn-outline-light btn-lg px-4"
+                  onClick={() => navigate('/login')}
+                >
                   Book Service
                 </button>
               </div>
             </div>
-            <div className="col-lg-6 text-center">
-              <div className="position-relative p-2 hero-image-wrapper">
+            
+            <div className="col-lg-6">
+              <div className="hero-img-container">
                 <img 
-                  src="https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" 
-                  alt="Minimal Cyber Garage" 
-                  className="img-fluid hero-main-img"
+                  src="https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80" 
+                  alt="Modern Automotive Service Center" 
+                  className="img-fluid"
                 />
               </div>
             </div>
@@ -87,20 +110,20 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* SECTION 3: Statistics */}
-      <section className="stats-section py-5 cyber-bg-black position-relative z-2">
+      {/* SECTION 3: Live Statistics Strip */}
+      <section className="stats-section">
         <div className="container">
           <div className="row g-4 text-center">
             {[
-              { num: "5000+", label: "Services Completed" },
-              { num: "3000+", label: "Customers" },
-              { num: "1500+", label: "Vehicles Managed" },
-              { num: "99%", label: "Satisfaction" }
+              { num: "5,000+", label: "Services Completed" },
+              { num: "3,000+", label: "Registered Customers" },
+              { num: "1,500+", label: "Vehicles Managed" },
+              { num: "99.4%", label: "Satisfaction Rate" }
             ].map((stat, index) => (
               <div className="col-6 col-md-3" key={index}>
-                <div className="stat-card p-4">
-                  <h2 className="display-5 fw-bold text-white mb-2 mono">{stat.num}</h2>
-                  <p className="text-secondary fw-medium mb-0 text-uppercase tracking-wider small">{stat.label}</p>
+                <div className="stat-box">
+                  <div className="stat-num">{stat.num}</div>
+                  <p className="stat-label">{stat.label}</p>
                 </div>
               </div>
             ))}
@@ -108,31 +131,32 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* SECTION 4: Our Services */}
-      <section id="services" className="services-section py-6 cyber-bg-dark">
+      {/* SECTION 4: Features Section */}
+      <section id="features" className="features-section">
+        <span id="services" className="nav-anchor" aria-hidden="true" />
         <div className="container">
-          <div className="text-center mb-5 max-w-700 mx-auto">
-            <div className="mono text-white tracking-wider mb-2">// CORE OPERATIONS</div>
-            <h2 className="display-5 fw-black text-white mb-3">Our Services</h2>
-            <p className="text-secondary lead">Robust system models optimized for absolute digital utility.</p>
+          <div className="section-header-block">
+            <span className="section-tag section-tag-orange">Workshop Features</span>
+            <h2 className="section-title">Core Workshop Features</h2>
+            <p className="section-subtitle">Complete end-to-end digital toolset engineered specifically for modern multi-brand garages.</p>
           </div>
           
           <div className="row g-4">
             {[
-              { icon: <BsCarFront />, title: "Vehicle Registration", desc: "Easily register and manage customer vehicles with complete details." },
-              { icon: <BsCalendarCheck />, title: "Appointment Booking", desc: "Seamlessly book services and track real-time status updates." },
-              { icon: <BsCardText />, title: "Job Card Management", desc: "Digital job cards to track repairs, mechanics, and parts used." },
-              { icon: <BsClockHistory />, title: "Vehicle Repair Tracking", desc: "Monitor repair progress in real-time and notify customers." },
-              { icon: <BsReceipt />, title: "Billing & Invoice", desc: "Automated and accurate billing with instant digital invoices." },
-              { icon: <BsJournalText />, title: "Service History", desc: "Complete historical records of all vehicle repairs and maintenance." }
+              { icon: <BsCarFront />, title: "Vehicle Registration", desc: "Maintain comprehensive vehicle profiles, warranty, odometer logs, and insurance records." },
+              { icon: <BsCalendarCheck />, title: "Appointment Booking", desc: "Online self-service booking with dynamic mechanic capacity and time slot management." },
+              { icon: <BsCardText />, title: "Digital Job Cards", desc: "Track mechanic assignments, complaints, diagnosis notes, and spare parts in real time." },
+              { icon: <BsClockHistory />, title: "Live Bay Tracking", desc: "Real-time visibility into repair bays, walk-in queues, and technician workloads." },
+              { icon: <BsReceipt />, title: "Billing & GST Invoicing", desc: "Instant automated itemized invoices with Razorpay online checkout and UPI support." },
+              { icon: <BsJournalText />, title: "Complete Service History", desc: "Comprehensive historical logs of parts replaced, labour charges, and maintenance history." }
             ].map((service, idx) => (
               <div className="col-md-6 col-lg-4" key={idx}>
-                <div className="cyber-card p-4 h-100 text-center text-white">
-                  <div className="text-white mb-4 fs-1">
+                <div className="enterprise-card feature-card">
+                  <div className="icon-box icon-box-orange">
                     {service.icon}
                   </div>
-                  <h4 className="fw-bold mb-3 text-white text-uppercase tracking-wider small">{service.title}</h4>
-                  <p className="text-secondary mb-0 small">{service.desc}</p>
+                  <h4 className="feature-card-title">{service.title}</h4>
+                  <p className="feature-card-desc">{service.desc}</p>
                 </div>
               </div>
             ))}
@@ -140,63 +164,63 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* SECTION 5: How It Works */}
-      <section className="workflow-section py-6 cyber-bg-black">
+      {/* SECTION 5: How It Works / Workflow */}
+      <section id="workflow" className="workflow-section">
         <div className="container">
-          <div className="text-center mb-5">
-            <div className="mono text-white tracking-wider mb-2">// PIPELINE LOG</div>
-            <h2 className="display-5 fw-black text-white mb-3">How It Works</h2>
-            <p className="text-secondary lead max-w-700 mx-auto">Step-by-step telemetry from registration to service output.</p>
+          <div className="section-header-block">
+            <span className="section-tag section-tag-orange">Operational Flow</span>
+            <h2 className="section-title">How Garage ERP Works</h2>
+            <p className="section-subtitle">From initial booking to parts fulfillment, inspection, and customer invoice release.</p>
           </div>
 
-          <div className="horizontal-timeline px-3 py-5 position-relative">
-            <div className="timeline-line"></div>
-            <div className="d-flex flex-nowrap overflow-auto pb-4 custom-scrollbar gap-4 justify-content-between">
-              {[
-                { title: "Customer Register", icon: <BsPeople /> },
-                { title: "Login", icon: <BsShieldCheck /> },
-                { title: "Register Vehicle", icon: <BsCarFront /> },
-                { title: "Book Appointment", icon: <BsCalendarPlus /> },
-                { title: "Admin Approval", icon: <BsCheckCircleFill /> },
-                { title: "Job Card", icon: <BsCardText /> },
-                { title: "Repair", icon: <BsBox /> },
-                { title: "Billing", icon: <BsReceipt /> },
-                { title: "Service History", icon: <BsJournalText /> }
-              ].map((step, idx) => (
-                <div className="timeline-step text-center position-relative" key={idx}>
-                  <div className="timeline-icon-box d-flex align-items-center justify-content-center mx-auto mb-3 fs-4">
-                    {step.icon}
-                  </div>
-                  <h6 className="fw-bold text-white mb-0 text-nowrap px-2 small tracking-wider mono">{step.title}</h6>
+          <div className="row g-3">
+            {[
+              { step: "01", title: "Registration", desc: "Customer creates account & registers vehicle" },
+              { step: "02", title: "Appointment", desc: "Select preferred slot or walk in directly" },
+              { step: "03", title: "Bay Allocation", desc: "Advisor verifies capacity & creates Job Card" },
+              { step: "04", title: "Inspection", desc: "Assigned mechanic inspects & notes requirements" },
+              { step: "05", title: "Parts & Repair", desc: "Parts requisitions deducted from live inventory" },
+              { step: "06", title: "Tax Invoice", desc: "Automatic GST invoice generated with Razorpay" }
+            ].map((item, idx) => (
+              <div className="col-md-4 col-lg-2" key={idx}>
+                <div className="workflow-box h-100">
+                  <div className="step-pill">{item.step}</div>
+                  <h6 className="workflow-step-title">{item.title}</h6>
+                  <p className="workflow-step-desc">{item.desc}</p>
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* SECTION 6: Why Choose Us */}
-      <section id="features" className="why-choose-section py-6 cyber-bg-dark">
+      {/* SECTION 6: Why Choose Us / Enterprise Value */}
+      <section id="enterprise-value" className="enterprise-value-section">
         <div className="container">
-          <div className="text-center mb-5">
-            <div className="mono text-white tracking-wider mb-2">// SPECIFICATIONS</div>
-            <h2 className="display-5 fw-black text-white mb-3">Why Choose Us</h2>
+          <div className="section-header-block">
+            <span className="section-tag section-tag-blue">Enterprise Value</span>
+            <h2 className="section-title">Engineered for Efficiency</h2>
+            <p className="section-subtitle">Enterprise-grade capabilities built for maximum uptime, accountability, and customer loyalty.</p>
           </div>
+          
           <div className="row g-4">
             {[
-              { icon: <BsCalendarPlus />, title: "Online Appointment" },
-              { icon: <BsGeoAlt />, title: "Real-time Tracking" },
-              { icon: <BsShieldCheck />, title: "Secure Login" },
-              { icon: <BsFileEarmarkText />, title: "Digital Records" },
-              { icon: <BsLightningCharge />, title: "Fast Billing" },
-              { icon: <BsCloudCheck />, title: "Cloud Database" }
+              { icon: <BsCalendarPlus />, title: "Capacity-Driven Booking", desc: "Never overbook: live slot availability calculated automatically from active mechanic check-ins." },
+              { icon: <BsGeoAlt />, title: "Live Waiting Queue", desc: "Manage walk-in customers with priority queue tokens and estimated bay wait times." },
+              { icon: <BsShieldCheck />, title: "Role-Based Access", desc: "Dedicated portals tailored for Admins, Service Advisors, Mechanics, and Customers." },
+              { icon: <BsFileEarmarkText />, title: "Compliant GST Invoicing", desc: "Professional tax invoices featuring SAC/HSN codes, itemized parts, and labour charges." },
+              { icon: <BsLightningCharge />, title: "Payroll & Attendance", desc: "Daily biometric attendance logging, LOP calculations, and auto-generated payslips." },
+              { icon: <BsCloudCheck />, title: "Real-time Analytics", desc: "Executive KPI summaries, revenue trends, service breakdown, and mechanic workload analytics." }
             ].map((feature, idx) => (
               <div className="col-md-6 col-lg-4" key={idx}>
-                <div className="cyber-card d-flex align-items-center p-4 gap-4 text-white">
-                  <div className="text-white fs-3 d-flex">
+                <div className="enterprise-card enterprise-value-card">
+                  <div className="icon-box icon-box-blue flex-shrink-0 mb-0">
                     {feature.icon}
                   </div>
-                  <h5 className="fw-bold mb-0 text-uppercase tracking-wider small">{feature.title}</h5>
+                  <div>
+                    <h5 className="fw-bold text-navy fs-6 mb-1">{feature.title}</h5>
+                    <p className="text-muted small mb-0 lh-base">{feature.desc}</p>
+                  </div>
                 </div>
               </div>
             ))}
@@ -204,30 +228,29 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* SECTION 7: ERP Modules */}
-      <section className="modules-section py-6 cyber-bg-black position-relative overflow-hidden">
-        <div className="container position-relative z-1">
-          <div className="text-center mb-5">
-            <h2 className="display-5 fw-black mb-3 text-white">System Modules</h2>
-            <p className="lead text-secondary max-w-700 mx-auto">Explore targeted system consoles for maximum enterprise coordination.</p>
+      {/* SECTION 7: System Modules */}
+      <section id="modules" className="py-5 bg-white">
+        <div className="container py-4">
+          <div className="text-center mb-5" style={{ maxWidth: '680px', margin: '0 auto' }}>
+            <span className="section-tag">All-In-One Platform</span>
+            <h2 className="section-title">Core ERP Modules</h2>
+            <p className="text-muted lead fs-6">Every component you need to operate a profitable automotive service facility.</p>
           </div>
-          
+
           <div className="row g-4">
             {[
-              { icon: <BsPeople />, title: "Customer Management" },
-              { icon: <BsCarFront />, title: "Vehicle Management" },
-              { icon: <BsCalendarCheck />, title: "Appointment Management" },
-              { icon: <BsCardText />, title: "Job Cards" },
-              { icon: <BsPeople />, title: "Mechanic Management" },
-              { icon: <BsBox />, title: "Inventory" },
-              { icon: <BsReceipt />, title: "Billing" },
-              { icon: <BsClipboardData />, title: "Reports" },
-              { icon: <BsBell />, title: "Notifications" }
-            ].map((module, idx) => (
+              { title: "Customer & Fleet CRM", icon: <FaUsers size={24} className="text-primary" />, desc: "Maintain owner profiles, contact details, and multi-vehicle garage portfolios." },
+              { title: "Workshop Job Cards", icon: <FaWrench size={24} className="text-warning" />, desc: "Full digital work orders with common service selector and status lifecycles." },
+              { title: "Spare Parts Inventory", icon: <BsBox size={24} className="text-success" />, desc: "Track stock, reorder thresholds, supplier pricing, and parts usage." },
+              { title: "Financials & Billing", icon: <FaFileInvoiceDollar size={24} className="text-info" />, desc: "Tax invoices, digital payment gateway integration, and balance tracking." },
+              { title: "Staff & Attendance", icon: <BsClock size={24} className="text-danger" />, desc: "IST-based check-in/out logging, mechanic bay status, and payroll calculations." },
+              { title: "Reports & Insights", icon: <BsClipboardData size={24} className="text-purple" />, desc: "Revenue analytics, service volume, parts consumption, and free service trends." }
+            ].map((mod, idx) => (
               <div className="col-md-6 col-lg-4" key={idx}>
-                <div className="module-card p-4 text-center h-100 transition-all cyber-card">
-                  <div className="text-white fs-1 mb-3">{module.icon}</div>
-                  <h4 className="fw-bold mb-0 text-white text-uppercase tracking-wider small">{module.title}</h4>
+                <div className="enterprise-card border-top border-4 border-orange">
+                  <div className="mb-3">{mod.icon}</div>
+                  <h5 className="fw-bold text-navy fs-6 mb-2">{mod.title}</h5>
+                  <p className="text-muted small mb-0">{mod.desc}</p>
                 </div>
               </div>
             ))}
@@ -235,69 +258,42 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* SECTION 8: Customer Testimonials */}
-      <section className="testimonials-section py-6 cyber-bg-dark">
-        <div className="container">
+      {/* SECTION 8: FAQ */}
+      <section id="faq" className="py-5" style={{ backgroundColor: '#F8FAFC' }}>
+        <div className="container py-4" style={{ maxWidth: '860px' }}>
           <div className="text-center mb-5">
-            <div className="mono text-white tracking-wider mb-2">// LOGS: USER_FEEDBACK</div>
-            <h2 className="display-5 fw-black text-white mb-3">User Testimonials</h2>
+            <span className="section-tag">Frequently Asked Questions</span>
+            <h2 className="section-title">Got Questions? We Have Answers</h2>
           </div>
-          
-          <div className="row g-4">
-            {[
-              { text: "This ERP has completely revolutionized how we run our garage. The job card management is flawless.", name: "Alex Turner", role: "Garage Owner" },
-              { text: "Billing used to take hours, now it's done in clicks. Excellent system and great customer support.", name: "Samantha Lee", role: "Service Manager" },
-              { text: "Our customers love the real-time tracking feature. It builds trust and keeps everyone informed.", name: "David Johnson", role: "Lead Mechanic" }
-            ].map((review, idx) => (
-              <div className="col-md-4" key={idx}>
-                <div className="cyber-card p-5 h-100 text-white">
-                  <div className="text-white mb-3 fs-6">
-                    <BsStarFill/><BsStarFill/><BsStarFill/><BsStarFill/><BsStarFill/>
-                  </div>
-                  <p className="fst-italic text-secondary mb-4 small">"{review.text}"</p>
-                  <div className="d-flex align-items-center gap-3">
-                    <div className="avatar bg-white text-dark d-flex align-items-center justify-content-center fw-bold fs-6" style={{width:'40px', height:'40px'}}>
-                      {review.name.charAt(0)}
-                    </div>
-                    <div>
-                      <h6 className="fw-bold mb-0 text-white text-uppercase small">{review.name}</h6>
-                      <small className="text-muted tracking-wider mono small" style={{fontSize: '0.75rem'}}>{review.role}</small>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
 
-      {/* SECTION 9: Frequently Asked Questions */}
-      <section className="faq-section py-6 cyber-bg-black" id="about">
-        <div className="container max-w-800" style={{maxWidth: '800px', margin: '0 auto'}}>
-          <div className="text-center mb-5">
-            <div className="mono text-white tracking-wider mb-2">// KNOWLEDGE_BASE</div>
-            <h2 className="display-5 fw-black text-white mb-3">FAQ Accordion</h2>
-          </div>
-          <div className="accordion custom-accordion" id="faqAccordion">
+          <div className="accordion" id="faqAccordion">
             {[
-              { q: "How secure is the cloud database?", a: "We use enterprise-grade encryption and secure servers to ensure all your customer and business data is completely safe and backed up daily." },
-              { q: "Can I manage multiple mechanics?", a: "Yes, our Mechanic Management module allows you to assign mechanics to specific job cards and track their performance easily." },
-              { q: "Is the billing system customizable?", a: "Absolutely. You can add your logo, custom tax rates, and specific terms to all generated invoices." },
-              { q: "Does it support mobile devices?", a: "Our platform is fully responsive and can be accessed from any smartphone, tablet, or desktop computer." }
-            ].map((faq, idx) => (
-              <div className="accordion-item mb-3" key={idx}>
-                <h2 className="accordion-header">
+              { q: "How does the mechanic capacity booking work?", a: "The ERP automatically calculates available bay slots per hour based on mechanics checked in today. When capacity is fully booked, customers can join the live waiting queue." },
+              { q: "Can customers track their vehicle repair status online?", a: "Yes. Customers have a dedicated portal where they can view live job card status, diagnostic notes, advisor recommendations, and past service history." },
+              { q: "Does the billing module support online payments?", a: "Yes. Invoices support integrated Razorpay payment gateway checkout (UPI, cards, net banking) with instant verification and printable tax invoices." },
+              { q: "How does the system handle employee attendance and payroll?", a: "Attendance is recorded in Indian Standard Time (IST). Staff members not explicitly marked check-in default to Present without fake work hours. Monthly payroll calculates earned salary accurately without penalizing future dates." }
+            ].map((item, idx) => (
+              <div className="accordion-item shadow-sm" key={idx}>
+                <h2 className="accordion-header" id={`heading${idx}`}>
                   <button 
-                    className={`accordion-button fw-bold bg-transparent shadow-none ${activeFaq === idx ? '' : 'collapsed'}`} 
+                    className={`accordion-button ${idx !== 0 ? 'collapsed' : ''}`} 
                     type="button" 
-                    onClick={() => toggleFaq(idx)}
+                    data-bs-toggle="collapse" 
+                    data-bs-target={`#collapse${idx}`} 
+                    aria-expanded={idx === 0 ? 'true' : 'false'} 
+                    aria-controls={`collapse${idx}`}
                   >
-                    {faq.q}
+                    {item.q}
                   </button>
                 </h2>
-                <div className={`accordion-collapse collapse ${activeFaq === idx ? 'show' : ''}`}>
-                  <div className="accordion-body text-secondary fs-6 pt-0 pb-4 px-4">
-                    {faq.a}
+                <div 
+                  id={`collapse${idx}`} 
+                  className={`accordion-collapse collapse ${idx === 0 ? 'show' : ''}`} 
+                  aria-labelledby={`heading${idx}`} 
+                  data-bs-parent="#faqAccordion"
+                >
+                  <div className="accordion-body">
+                    {item.a}
                   </div>
                 </div>
               </div>
@@ -306,117 +302,90 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* SECTION 10: Contact */}
-      <section id="contact" className="contact-section py-6 cyber-bg-dark">
-        <div className="container">
-          <div className="row g-5 align-items-center">
-            <div className="col-lg-5 text-start">
-              <h2 className="display-5 fw-black text-white mb-4">Get In Touch</h2>
-              <p className="lead text-secondary mb-5">Have questions or need custom integrations? Contact our command center.</p>
-              
-              <div className="d-flex flex-column gap-4">
-                <div className="d-flex gap-4 align-items-center p-3 cyber-card text-white">
-                  <div className="text-white fs-4 d-flex"><BsGeoAlt/></div>
-                  <div>
-                    <h5 className="fw-bold mb-1 tracking-wider small">Address</h5>
-                    <p className="text-secondary mb-0 small">123 Garage Ave, Auto City, AC 10001</p>
-                  </div>
-                </div>
-                <div className="d-flex gap-4 align-items-center p-3 cyber-card text-white">
-                  <div className="text-white fs-4 d-flex"><BsTelephone/></div>
-                  <div>
-                    <h5 className="fw-bold mb-1 tracking-wider small">Phone</h5>
-                    <p className="text-secondary mb-0 small">+1 (555) 123-4567</p>
-                  </div>
-                </div>
-                <div className="d-flex gap-4 align-items-center p-3 cyber-card text-white">
-                  <div className="text-white fs-4 d-flex"><BsClock/></div>
-                  <div>
-                    <h5 className="fw-bold mb-1 tracking-wider small">Working Hours</h5>
-                    <p className="text-secondary mb-0 small">Mon - Fri: 8 AM - 6 PM</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="col-lg-7">
-              <div className="p-5 cyber-card text-white">
-                <form className="row g-4">
-                  <div className="col-md-6">
-                    <label className="form-label fw-bold small text-uppercase tracking-wider">Full Name</label>
-                    <input type="text" className="form-control form-control-lg px-4" placeholder="John Doe" />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label fw-bold small text-uppercase tracking-wider">Email Address</label>
-                    <input type="email" className="form-control form-control-lg px-4" placeholder="john@example.com" />
-                  </div>
-                  <div className="col-12">
-                    <label className="form-label fw-bold small text-uppercase tracking-wider">Subject</label>
-                    <input type="text" className="form-control form-control-lg px-4" placeholder="Request details..." />
-                  </div>
-                  <div className="col-12">
-                    <label className="form-label fw-bold small text-uppercase tracking-wider">Message</label>
-                    <textarea className="form-control form-control-lg px-4" rows="4" placeholder="Enter transmission..."></textarea>
-                  </div>
-                  <div className="col-12 mt-4">
-                    <button type="button" className="btn btn-cyber-solid btn-lg w-100">Send Transmission</button>
-                  </div>
-                </form>
+      {/* SECTION 9: Contact & CTA */}
+      <section id="contact" className="py-5 bg-white">
+        <div className="container py-4">
+          <div className="bg-navy p-4 p-md-5 rounded-4 text-white text-center position-relative overflow-hidden">
+            <div className="position-relative z-1" style={{ maxWidth: '640px', margin: '0 auto' }}>
+              <h2 className="display-6 fw-bold mb-3 text-white">Ready to Modernize Your Automotive Workshop?</h2>
+              <p className="lead text-light opacity-75 mb-4 fs-6">
+                Start managing appointments, job cards, mechanics, inventory, and billing seamlessly today.
+              </p>
+              <div className="d-flex justify-content-center gap-3 flex-wrap">
+                <button className="btn btn-orange btn-lg px-4" onClick={() => navigate('/register')}>
+                  Create Free Account
+                </button>
+                <button className="btn btn-outline-light btn-lg px-4" onClick={() => navigate('/login')}>
+                  Access Console
+                </button>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* SECTION 11: Footer */}
-      <footer className="footer-section cyber-bg-black text-white pt-6 pb-4 position-relative">
+      {/* SECTION 10: Footer */}
+      <footer className="footer-section">
         <div className="container">
-          <div className="row g-5 mb-5">
-            <div className="col-lg-4 text-start">
-              <Link className="navbar-brand fw-bold fs-3 d-flex align-items-center gap-2 text-white mb-4 text-decoration-none" to="/">
-                <span>//</span> GarageERP
-              </Link>
-              <p className="text-secondary pe-lg-4 lh-lg small">
-                Enterprise telemetry system to manage your garage operations with terminal-grade precision.
+          <div className="row g-4 mb-5">
+            <div className="col-lg-4">
+              <div className="d-flex align-items-center gap-2 mb-3">
+                <div className="bg-orange p-2 rounded-2 text-white d-flex align-items-center justify-content-center" style={{ width: '32px', height: '32px' }}>
+                  <FaCar size={16} />
+                </div>
+                <h5 className="mb-0 text-white fw-bold">GARAGE ERP</h5>
+              </div>
+              <p className="text-muted small pe-lg-4 mb-4">
+                Enterprise workshop management software empowering automotive garages and dealerships to deliver premier service efficiency.
               </p>
-              <div className="d-flex gap-3 mt-4">
-                <a href="#" className="social-circle d-flex align-items-center justify-content-center text-decoration-none transition-all"><BsFacebook/></a>
-                <a href="#" className="social-circle d-flex align-items-center justify-content-center text-decoration-none transition-all"><BsTwitter/></a>
-                <a href="#" className="social-circle d-flex align-items-center justify-content-center text-decoration-none transition-all"><BsInstagram/></a>
-                <a href="#" className="social-circle d-flex align-items-center justify-content-center text-decoration-none transition-all"><BsLinkedin/></a>
+              <div className="d-flex gap-2">
+                <a href="#home" className="social-btn" aria-label="Facebook"><BsFacebook /></a>
+                <a href="#home" className="social-btn" aria-label="Twitter"><BsTwitter /></a>
+                <a href="#home" className="social-btn" aria-label="Instagram"><BsInstagram /></a>
+                <a href="#home" className="social-btn" aria-label="LinkedIn"><BsLinkedin /></a>
               </div>
             </div>
-            <div className="col-lg-2 col-md-4 text-start">
-              <h5 className="fw-bold mb-4 text-white text-uppercase tracking-wider small">Quick Links</h5>
-              <ul className="list-unstyled d-flex flex-column gap-3 small">
-                <li><a href="#home" className="text-secondary text-decoration-none hover-white transition-all">Home</a></li>
-                <li><a href="#about" className="text-secondary text-decoration-none hover-white transition-all">About Us</a></li>
-                <li><a href="#features" className="text-secondary text-decoration-none hover-white transition-all">Features</a></li>
-                <li><a href="#contact" className="text-secondary text-decoration-none hover-white transition-all">Contact</a></li>
-              </ul>
+
+            <div className="col-6 col-lg-2">
+              <h5>Navigation</h5>
+              <a href="#home">Home</a>
+              <a href="#features">Features</a>
+              <a href="#workflow">Workflow</a>
+              <a href="#enterprise-value">Enterprise</a>
+              <a href="#modules">ERP Modules</a>
             </div>
-            <div className="col-lg-2 col-md-4 text-start">
-              <h5 className="fw-bold mb-4 text-white text-uppercase tracking-wider small">Services</h5>
-              <ul className="list-unstyled d-flex flex-column gap-3 small">
-                <li><a href="#" className="text-secondary text-decoration-none hover-white transition-all">Job Cards</a></li>
-                <li><a href="#" className="text-secondary text-decoration-none hover-white transition-all">Appointments</a></li>
-                <li><a href="#" className="text-secondary text-decoration-none hover-white transition-all">Billing</a></li>
-                <li><a href="#" className="text-secondary text-decoration-none hover-white transition-all">Inventory</a></li>
-              </ul>
+
+            <div className="col-6 col-lg-3">
+              <h5>System Portals</h5>
+              <Link to="/login">Administrator Console</Link>
+              <Link to="/login">Service Advisor Desk</Link>
+              <Link to="/login">Technician Workbench</Link>
+              <Link to="/login">Customer Portal</Link>
+              <Link to="/register">Create Account</Link>
             </div>
-            <div className="col-lg-4 col-md-4 text-start">
-              <h5 className="fw-bold mb-4 text-white text-uppercase tracking-wider small">Newsletter</h5>
-              <p className="text-secondary mb-4 lh-lg small">Receive scheduled system updates.</p>
-              <div className="input-group">
-                <input type="email" className="form-control border-0" placeholder="Console Email" />
-                <button className="btn btn-cyber-solid px-4" type="button">Subscribe</button>
-              </div>
+
+            <div className="col-lg-3">
+              <h5>Support & Garage HQ</h5>
+              <p className="text-muted small mb-2 d-flex align-items-center gap-2">
+                <BsTelephone className="text-orange" /> +91 (800) 123-4567
+              </p>
+              <p className="text-muted small mb-2 d-flex align-items-center gap-2">
+                <BsEnvelope className="text-orange" /> support@garageerp.com
+              </p>
+              <p className="text-muted small mb-0 d-flex align-items-center gap-2">
+                <BsClock className="text-orange" /> Mon - Sat: 8:00 AM - 7:00 PM
+              </p>
             </div>
           </div>
-          <div className="border-top border-secondary pt-4 mt-4 d-flex flex-column flex-md-row justify-content-between align-items-center gap-3">
-            <p className="text-secondary mb-0 small">&copy; {new Date().getFullYear()} GarageERP. Core Terminals Activated.</p>
-            <div className="d-flex gap-4 small">
-              <a href="#" className="text-secondary text-decoration-none hover-white transition-all">Privacy Policy</a>
-              <a href="#" className="text-secondary text-decoration-none hover-white transition-all">Terms & Conditions</a>
+
+          <div className="pt-4 border-top border-secondary border-opacity-25 d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 text-muted small">
+            <div>
+              &copy; {new Date().getFullYear()} Garage ERP. All rights reserved. Professional Automotive ERP.
+            </div>
+            <div className="d-flex gap-3">
+              <a href="#home" className="text-muted">Privacy Policy</a>
+              <a href="#home" className="text-muted">Terms of Service</a>
+              <a href="#home" className="text-muted">Security</a>
             </div>
           </div>
         </div>

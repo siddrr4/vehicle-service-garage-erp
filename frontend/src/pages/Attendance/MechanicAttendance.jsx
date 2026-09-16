@@ -5,6 +5,7 @@ import { toast } from 'react-toastify';
 import { AuthContext } from '../../context/AuthContext';
 import attendanceService from '../../services/attendanceService';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
+import { formatTimeIST, formatDateIST, formatWorkingHoursDisplay } from '../../utils/dateUtils';
 
 const MechanicAttendance = () => {
   const { user } = useContext(AuthContext);
@@ -102,7 +103,7 @@ const MechanicAttendance = () => {
                   {currentRecord ? getStatusBadge(currentRecord.status || currentRecord.attendanceStatus) : <Badge bg="secondary">Not Checked In</Badge>}
                 </div>
                 <p className="text-muted small mb-4">
-                  {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                  {new Date().toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                 </p>
               </div>
 
@@ -141,7 +142,7 @@ const MechanicAttendance = () => {
                   <div className="p-3 bg-light rounded border">
                     <small className="text-muted d-block fw-medium mb-1">Check In Time</small>
                     <h6 className="fw-bold text-dark m-0">
-                      {currentRecord?.checkIn ? new Date(currentRecord.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                      {currentRecord?.checkIn ? formatTimeIST(currentRecord.checkIn) : '--:--'}
                     </h6>
                   </div>
                 </Col>
@@ -149,7 +150,7 @@ const MechanicAttendance = () => {
                   <div className="p-3 bg-light rounded border">
                     <small className="text-muted d-block fw-medium mb-1">Check Out Time</small>
                     <h6 className="fw-bold text-dark m-0">
-                      {currentRecord?.checkOut ? new Date(currentRecord.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                      {currentRecord?.checkOut ? formatTimeIST(currentRecord.checkOut) : '--:--'}
                     </h6>
                   </div>
                 </Col>
@@ -158,7 +159,7 @@ const MechanicAttendance = () => {
                     <div>
                       <small className="text-primary fw-semibold d-block mb-1">Total Calculated Hours</small>
                       <h4 className="fw-bold text-primary m-0">
-                        {currentRecord?.workingHours ? (typeof currentRecord.workingHours === 'string' && currentRecord.workingHours.includes('h') ? currentRecord.workingHours : `${currentRecord.workingHours} hrs`) : isCheckedIn ? 'In Progress...' : '0 hrs'}
+                        {formatWorkingHoursDisplay(currentRecord?.workingHours, Boolean(isCheckedIn), Boolean(isCheckedOut))}
                       </h4>
                     </div>
                     <div className="p-3 bg-primary text-white rounded-circle">
@@ -202,15 +203,15 @@ const MechanicAttendance = () => {
                 <tbody>
                   {history.map((item) => (
                     <tr key={item._id} className="border-bottom">
-                      <td className="px-4 py-3 fw-bold text-navy">{item.date}</td>
+                      <td className="px-4 py-3 fw-bold text-navy">{formatDateIST(item.date)}</td>
                       <td className="px-4 py-3 text-dark fw-medium">
-                        {item.checkIn ? new Date(item.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '-'}
+                        {item.checkIn ? formatTimeIST(item.checkIn) : '-'}
                       </td>
                       <td className="px-4 py-3 text-dark fw-medium">
-                        {item.checkOut ? new Date(item.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '-'}
+                        {item.checkOut ? formatTimeIST(item.checkOut) : '-'}
                       </td>
                       <td className="px-4 py-3 fw-semibold text-primary">
-                        {item.workingHours ? (typeof item.workingHours === 'string' && item.workingHours.includes('h') ? item.workingHours : `${item.workingHours} hrs`) : item.checkIn && !item.checkOut ? 'Active' : '0 hrs'}
+                        {formatWorkingHoursDisplay(item.workingHours, Boolean(item.checkIn), Boolean(item.checkOut))}
                       </td>
                       <td className="px-4 py-3 text-end">{getStatusBadge(item.status || item.attendanceStatus)}</td>
                     </tr>

@@ -5,6 +5,8 @@ import { FaFileInvoiceDollar, FaSearch, FaPrint, FaArrowRight, FaWrench } from '
 import { toast } from 'react-toastify';
 import billingService from '../../services/billingService';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
+import PageHeader from '../../components/UI/PageHeader';
+import EmptyState from '../../components/UI/EmptyState';
 
 const BillingList = () => {
   const [invoices, setInvoices] = useState([]);
@@ -49,82 +51,86 @@ const BillingList = () => {
   };
 
   return (
-    <div className="container-fluid p-0">
+    <div className="container-fluid px-0">
       
       {/* Header */}
-      <div className="mb-4">
-        <h2 className="fw-bold mb-1 text-navy d-flex align-items-center gap-2">
-          <FaFileInvoiceDollar className="text-success" /> Billing & Invoicing
-        </h2>
-        <p className="text-muted mb-0">Generate, view, and print invoices for completed service job cards and track payments.</p>
-      </div>
+      <PageHeader
+        title="Billing & Tax Invoicing"
+        subtitle={`${total} workshop service invoices generated with GST tax breakdown and real-time settlement status`}
+        breadcrumbs={[
+          { label: 'Finance', to: '/billing' },
+          { label: 'Invoices' }
+        ]}
+      />
 
       {/* Summary Cards */}
-      <Row className="g-4 mb-4">
+      <Row className="g-3 mb-4">
         <Col xs={12} md={6}>
-          <Card className="bg-card border-0 shadow-sm dashboard-card h-100">
-            <Card.Body className="p-4 d-flex justify-content-between align-items-center">
+          <div className="card border-0 shadow-sm rounded-3 h-100">
+            <div className="card-body p-4 d-flex justify-content-between align-items-center">
               <div>
-                <h6 className="text-muted fw-medium mb-1 small text-uppercase">Total Invoices</h6>
-                <h3 className="fw-bold mb-0 text-dark">{total} Invoices</h3>
+                <span className="text-muted fw-bold mb-1 small text-uppercase" style={{ fontSize: '0.72rem', letterSpacing: '0.05em' }}>Total Invoices Recorded</span>
+                <h3 className="fw-bold mb-0 text-navy mt-1">{total} Invoices</h3>
               </div>
-              <div className="p-3 bg-success bg-opacity-10 text-success rounded-circle">
+              <div className="p-3 bg-light text-navy rounded-circle border">
                 <FaWrench size={22} />
               </div>
-            </Card.Body>
-          </Card>
+            </div>
+          </div>
         </Col>
 
         <Col xs={12} md={6}>
-          <Card className="bg-card border-0 shadow-sm dashboard-card h-100">
-            <Card.Body className="p-4 d-flex justify-content-between align-items-center">
+          <div className="card border-0 shadow-sm rounded-3 h-100">
+            <div className="card-body p-4 d-flex justify-content-between align-items-center">
               <div>
-                <h6 className="text-muted fw-medium mb-1 small text-uppercase">Page Billed Revenue</h6>
-                <h3 className="fw-bold mb-0 text-navy">
+                <span className="text-muted fw-bold mb-1 small text-uppercase" style={{ fontSize: '0.72rem', letterSpacing: '0.05em' }}>Current Page Billed Value</span>
+                <h3 className="fw-bold mb-0 text-success mt-1">
                   ₹{calculateTotalBilledValue().toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </h3>
               </div>
-              <div className="p-3 bg-primary bg-opacity-10 text-primary rounded-circle">
+              <div className="p-3 bg-success bg-opacity-10 text-success rounded-circle border border-success border-opacity-25">
                 <FaFileInvoiceDollar size={22} />
               </div>
-            </Card.Body>
-          </Card>
+            </div>
+          </div>
         </Col>
       </Row>
 
       {/* Search Bar */}
-      <div className="bg-card rounded shadow-sm p-4 mb-4">
-        <form onSubmit={handleSearch} className="row g-3 align-items-center">
-          <div className="col-md-9">
-            <div className="input-group">
-              <span className="input-group-text bg-light border-end-0">
-                <FaSearch className="text-muted" />
-              </span>
-              <input
-                type="text"
-                className="form-control border-start-0 ps-0"
-                placeholder="Search by Job Card Number..."
-                value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
-              />
+      <div className="card border-0 shadow-sm rounded-3 mb-4">
+        <div className="card-body p-4">
+          <form onSubmit={handleSearch} className="row g-3 align-items-center">
+            <div className="col-md-9">
+              <div className="input-group">
+                <span className="input-group-text bg-light border-end-0">
+                  <FaSearch className="text-muted" />
+                </span>
+                <input
+                  type="text"
+                  className="form-control bg-light border-start-0 ps-0"
+                  placeholder="Search by Job Card Number, Invoice Number, or Customer..."
+                  value={keyword}
+                  onChange={(e) => setKeyword(e.target.value)}
+                />
+              </div>
             </div>
-          </div>
-          <div className="col-md-3">
-            <button type="submit" className="btn btn-navy w-100">Search Invoices</button>
-          </div>
-        </form>
+            <div className="col-md-3">
+              <button type="submit" className="btn btn-navy w-100">Search Invoices</button>
+            </div>
+          </form>
+        </div>
       </div>
 
       {/* Table */}
-      <div className="bg-card rounded shadow-sm overflow-hidden">
+      <div className="card border-0 shadow-sm rounded-3 overflow-hidden">
         {loading ? (
           <div className="p-5"><LoadingSpinner /></div>
         ) : invoices.length === 0 ? (
-          <div className="text-center p-5 text-muted">
-            <FaFileInvoiceDollar size={48} className="mb-3 opacity-50" />
-            <h5>No Invoices Found</h5>
-            <p>Generate invoices from the Job Card details page after a job is completed.</p>
-          </div>
+          <EmptyState
+            icon={FaFileInvoiceDollar}
+            title="No Invoices Found"
+            description="No invoices match the current search. Generate invoices from completed Job Cards in the workshop console."
+          />
         ) : (
           <div className="table-responsive">
             <Table hover className="align-middle mb-0 custom-table text-secondary small">

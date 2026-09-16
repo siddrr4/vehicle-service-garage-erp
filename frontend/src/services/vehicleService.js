@@ -27,3 +27,17 @@ export const deleteVehicle = async (id) => {
   const { data } = await api.delete(`/vehicles/${id}`);
   return data;
 };
+
+export const lookupVehicleByReg = async (regNumber) => {
+  const { data } = await api.get(`/vehicles/lookup/${encodeURIComponent(regNumber.trim().toUpperCase())}`);
+  return data;
+};
+
+export default {
+  getVehicles,
+  getVehicleById,
+  createVehicle,
+  updateVehicle,
+  deleteVehicle,
+  lookupVehicleByReg
+};

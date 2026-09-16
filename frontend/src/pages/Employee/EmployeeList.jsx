@@ -5,6 +5,8 @@ import { toast } from 'react-toastify';
 import employeeService from '../../services/employeeService';
 import EmployeeFormModal from './EmployeeFormModal';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
+import PageHeader from '../../components/UI/PageHeader';
+import EmptyState from '../../components/UI/EmptyState';
 
 const EmployeeList = () => {
   const [employees, setEmployees] = useState([]);
@@ -142,80 +144,87 @@ const EmployeeList = () => {
   };
 
   return (
-    <div className="container-fluid p-0">
+    <div className="container-fluid px-0">
       {/* Header */}
-      <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
-        <div>
-          <h2 className="fw-bold m-0 text-navy d-flex align-items-center gap-2">
-            <FaUserTie /> Mechanic & Employee Management
-          </h2>
-          <p className="text-muted mb-0">View, register, and manage garage staff and mechanics</p>
-        </div>
-        <Button className="btn-primary-custom d-flex align-items-center gap-2 px-3 py-2 shadow-sm" onClick={handleOpenAddModal}>
-          <FaUserPlus /> <span>Add New Employee</span>
-        </Button>
-      </div>
+      <PageHeader
+        title="Staff & Technician Management"
+        subtitle={`Directory of ${total} garage technicians, service advisors, and mechanics with real-time assignment status`}
+        breadcrumbs={[
+          { label: 'Employees', to: '/employees' },
+          { label: 'Staff Directory' }
+        ]}
+        actions={
+          <button className="btn btn-orange d-flex align-items-center gap-2 shadow-sm" onClick={handleOpenAddModal}>
+            <FaUserPlus /> <span>Add New Employee</span>
+          </button>
+        }
+      />
 
       {/* Search and Filters */}
-      <div className="bg-card rounded shadow-sm p-4 mb-4">
-        <form onSubmit={handleSearch} className="row g-3 align-items-center">
-          <div className="col-md-4">
-            <div className="input-group">
-              <span className="input-group-text bg-light border-end-0">
-                <FaSearch className="text-muted" />
-              </span>
-              <input
-                type="text"
-                className="form-control border-start-0 ps-0"
-                placeholder="Search by ID, Name, Email, Specialization..."
-                value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
-              />
+      <div className="card border-0 shadow-sm rounded-3 mb-4">
+        <div className="card-body p-4">
+          <form onSubmit={handleSearch} className="row g-3 align-items-center">
+            <div className="col-md-4">
+              <div className="input-group">
+                <span className="input-group-text bg-light border-end-0">
+                  <FaSearch className="text-muted" />
+                </span>
+                <input
+                  type="text"
+                  className="form-control bg-light border-start-0 ps-0"
+                  placeholder="Search by ID, Name, Email, Specialization..."
+                  value={keyword}
+                  onChange={(e) => setKeyword(e.target.value)}
+                />
+              </div>
             </div>
-          </div>
 
-          <div className="col-md-2">
-            <select className="form-select" value={roleFilter} onChange={handleFilterChange(setRoleFilter, 'role')}>
-              <option value="">All Roles</option>
-              <option value="Mechanic">Mechanic</option>
-              <option value="Service Advisor">Service Advisor</option>
-            </select>
-          </div>
+            <div className="col-md-2">
+              <select className="form-select bg-light" value={roleFilter} onChange={handleFilterChange(setRoleFilter, 'role')}>
+                <option value="">All Roles</option>
+                <option value="Mechanic">Mechanic</option>
+                <option value="Service Advisor">Service Advisor</option>
+              </select>
+            </div>
 
-          <div className="col-md-2">
-            <select className="form-select" value={availabilityFilter} onChange={handleFilterChange(setAvailabilityFilter, 'availability')}>
-              <option value="">All Availability</option>
-              <option value="Available">Available</option>
-              <option value="Busy">Busy</option>
-              <option value="Leave">On Leave</option>
-            </select>
-          </div>
+            <div className="col-md-2">
+              <select className="form-select bg-light" value={availabilityFilter} onChange={handleFilterChange(setAvailabilityFilter, 'availability')}>
+                <option value="">All Availability</option>
+                <option value="Available">Available</option>
+                <option value="Busy">Busy</option>
+                <option value="Leave">On Leave</option>
+              </select>
+            </div>
 
-          <div className="col-md-2">
-            <select className="form-select" value={statusFilter} onChange={handleFilterChange(setStatusFilter, 'status')}>
-              <option value="">All Statuses</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-            </select>
-          </div>
+            <div className="col-md-2">
+              <select className="form-select bg-light" value={statusFilter} onChange={handleFilterChange(setStatusFilter, 'status')}>
+                <option value="">All Statuses</option>
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+              </select>
+            </div>
 
-          <div className="col-md-2">
-            <button type="submit" className="btn btn-navy w-100 d-flex align-items-center justify-content-center gap-2">
-              <FaFilter size={14} /> <span>Search</span>
-            </button>
-          </div>
-        </form>
+            <div className="col-md-2">
+              <button type="submit" className="btn btn-navy w-100 d-flex align-items-center justify-content-center gap-2">
+                <FaFilter size={14} /> <span>Search</span>
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
 
       {/* Employee Table */}
-      <div className="bg-card rounded shadow-sm overflow-hidden">
+      <div className="card border-0 shadow-sm rounded-3 overflow-hidden">
         {loading ? (
           <div className="p-5"><LoadingSpinner /></div>
         ) : employees.length === 0 ? (
-          <div className="text-center p-5 text-muted">
-            <h5>No employees found</h5>
-            <p>Try adjusting your search criteria or register a new employee.</p>
-          </div>
+          <EmptyState
+            icon={FaUserTie}
+            title="No employees found"
+            description="Try adjusting your search criteria or register a new employee to the team."
+            actionLabel="Add New Employee"
+            onAction={handleOpenAddModal}
+          />
         ) : (
           <div className="table-responsive">
             <table className="table table-hover align-middle mb-0 custom-table">

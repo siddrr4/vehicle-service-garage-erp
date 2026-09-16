@@ -34,6 +34,8 @@ import AppointmentList from './pages/Appointment/AppointmentList';
 import BookAppointment from './pages/Appointment/BookAppointment';
 import EditAppointment from './pages/Appointment/EditAppointment';
 import AppointmentDetails from './pages/Appointment/AppointmentDetails';
+import WaitingQueue from './pages/Appointment/WaitingQueue';
+import WalkInService from './pages/Appointment/WalkInService';
 
 // Job Card Pages
 import JobCardList from './pages/JobCard/JobCardList';
@@ -45,6 +47,12 @@ import EmployeeList from './pages/Employee/EmployeeList';
 import MechanicAttendance from './pages/Attendance/MechanicAttendance';
 import AdminAttendance from './pages/Attendance/AdminAttendance';
 import MechanicProfile from './pages/Mechanic/MechanicProfile';
+
+// Salary & Payroll Pages
+import SalaryManagement from './pages/Salary/SalaryManagement';
+import PayrollList from './pages/Payroll/PayrollList';
+import PayslipView from './pages/Payroll/PayslipView';
+import MyPayslips from './pages/Payroll/MyPayslips';
 
 // Inventory, Billing & Invoice Pages
 import InventoryList from './pages/Inventory/InventoryList';
@@ -62,6 +70,8 @@ import ServiceHistoryDetails from './pages/ServiceHistory/ServiceHistoryDetails'
 // Reports
 import ReportsDashboard from './pages/Reports/ReportsDashboard';
 import SettingsPage from './pages/Settings/SettingsPage';
+import Notifications from './pages/Notifications';
+import InsuranceRenewal from './pages/Insurance/InsuranceRenewal';
 
 const DashboardRedirect = () => {
   const { user } = useContext(AuthContext);
@@ -110,6 +120,9 @@ function App() {
             <Route path="/payment-failure" element={<PaymentFailure />} />
             <Route path="/service-history" element={<ServiceHistoryList />} />
             <Route path="/service-history/:id" element={<ServiceHistoryDetails />} />
+            <Route path="/payslips/:id" element={<PayslipView />} />
+            <Route path="/notifications" element={<Notifications />} />
+            <Route path="/insurance-renewal/:vehicleId" element={<InsuranceRenewal />} />
           </Route>
           
           {/* Mechanic Protected Routes */}
@@ -119,6 +132,7 @@ function App() {
             <Route path="/mechanic-jobs" element={<MechanicDashboard />} />
             <Route path="/mechanic-completed-jobs" element={<MechanicDashboard />} />
             <Route path="/mechanic-profile" element={<MechanicProfile />} />
+            <Route path="/my-payslips" element={<MyPayslips />} />
           </Route>
 
           {/* Admin & Advisor Protected Routes */}
@@ -138,6 +152,8 @@ function App() {
  
             {/* Appointment Routes */}
             <Route path="/appointments" element={<AppointmentList />} />
+            <Route path="/walk-in" element={<WalkInService />} />
+            <Route path="/waiting-queue" element={<WaitingQueue />} />
             <Route path="/service-requests" element={<ServiceRequests />} />
             <Route path="/appointments/book" element={<BookAppointment />} />
             <Route path="/appointments/edit/:id" element={<EditAppointment />} />
@@ -151,6 +167,8 @@ function App() {
             {/* Employee Management Routes */}
             <Route path="/employees" element={<EmployeeList />} />
             <Route path="/admin-attendance" element={<AdminAttendance />} />
+            <Route path="/salary" element={<SalaryManagement />} />
+            <Route path="/payroll" element={<PayrollList />} />
 
             {/* Inventory Routes */}
             <Route path="/inventory" element={<InventoryList />} />
