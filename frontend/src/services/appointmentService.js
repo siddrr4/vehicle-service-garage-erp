@@ -41,6 +41,12 @@ const appointmentService = {
     return response.data;
   },
 
+  getNextWalkInSlot: async (date) => {
+    const query = date ? `?date=${date}` : '';
+    const response = await api.get(`/appointments/next-walkin-slot${query}`);
+    return response.data;
+  },
+
   getTodaySchedule: async () => {
     const { data } = await api.get('/appointments/today-schedule');
     return data;
@@ -48,6 +54,11 @@ const appointmentService = {
 
   addAdvisorRecommendation: async (id, recommendationText) => {
     const { data } = await api.put(`/appointments/${id}/recommendation`, { recommendationText });
+    return data;
+  },
+
+  assignMechanic: async (id, mechanicId) => {
+    const { data } = await api.put(`/appointments/${id}/assign-mechanic`, { mechanicId });
     return data;
   }
 };

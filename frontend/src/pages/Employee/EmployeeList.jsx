@@ -1,12 +1,25 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Button, Modal } from 'react-bootstrap';
-import { FaUserPlus, FaSearch, FaFilter, FaEdit, FaTrash, FaUserTie, FaCheckCircle, FaExclamationCircle, FaUserClock } from 'react-icons/fa';
+import {
+  FaUserPlus,
+  FaSearch,
+  FaFilter,
+  FaEdit,
+  FaTrash,
+  FaUserTie,
+  FaCheckCircle,
+  FaExclamationCircle,
+  FaUserClock,
+  FaClock
+} from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import employeeService from '../../services/employeeService';
 import EmployeeFormModal from './EmployeeFormModal';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
 import PageHeader from '../../components/UI/PageHeader';
 import EmptyState from '../../components/UI/EmptyState';
+import { formatTimeIST } from '../../utils/dateUtils';
 
 const EmployeeList = () => {
   const [employees, setEmployees] = useState([]);
@@ -123,17 +136,66 @@ const EmployeeList = () => {
     return <span className="badge bg-purple text-white rounded-pill px-3 py-1 fw-medium" style={{ backgroundColor: '#6f42c1' }}>Service Advisor</span>;
   };
 
-  const getAvailabilityBadge = (availability) => {
-    switch (availability) {
-      case 'Available':
-        return <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1 rounded-pill"><FaCheckCircle className="me-1" /> Available</span>;
-      case 'Busy':
-        return <span className="badge bg-warning bg-opacity-10 text-warning text-dark border border-warning border-opacity-25 px-2 py-1 rounded-pill"><FaUserClock className="me-1" /> Busy</span>;
-      case 'Leave':
-        return <span className="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-2 py-1 rounded-pill"><FaExclamationCircle className="me-1" /> Leave</span>;
-      default:
-        return <span className="badge bg-secondary px-2 py-1 rounded-pill">{availability}</span>;
+  const getAvailabilityBadge = (emp) => {
+    const today = emp.todayAttendance;
+    
+    // 1. Checked In: checkIn exists and checkOut does not exist (and not Absent/Leave)
+    if (today && today.checkedIn && !today.checkedOut && today.status !== 'Absent' && today.status !== 'Leave') {
+      return (
+        <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2.5 py-1.5 rounded-pill d-inline-flex align-items-center gap-1.5 fw-medium">
+          <FaCheckCircle size={11} />
+          <span>Checked In {today.checkInTime ? `(${formatTimeIST(today.checkInTime)})` : ''}</span>
+        </span>
+      );
     }
+
+    // 2. Checked Out: checkIn exists and checkOut exists
+    if (today && today.checkedOut) {
+      return (
+        <span className="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 px-2.5 py-1.5 rounded-pill d-inline-flex align-items-center gap-1.5 fw-medium">
+          <FaClock size={11} />
+          <span>Checked Out {today.checkOutTime ? `(${formatTimeIST(today.checkOutTime)})` : ''}</span>
+        </span>
+      );
+    }
+
+    // 3. Explicit Absent
+    if (today && (today.status === 'Absent' || today.attendanceStatus === 'Absent')) {
+      return (
+        <span className="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-2.5 py-1.5 rounded-pill d-inline-flex align-items-center gap-1.5 fw-medium">
+          <FaExclamationCircle size={11} />
+          <span>Absent</span>
+        </span>
+      );
+    }
+
+    // 4. Explicit Leave
+    if (today && (today.status === 'Leave' || today.attendanceStatus === 'Leave')) {
+      return (
+        <span className="badge bg-warning bg-opacity-10 text-warning-emphasis border border-warning border-opacity-25 px-2.5 py-1.5 rounded-pill d-inline-flex align-items-center gap-1.5 fw-medium" style={{ color: '#856404' }}>
+          <FaExclamationCircle size={11} />
+          <span>Leave</span>
+        </span>
+      );
+    }
+
+    // 5. Half Day
+    if (today && (today.status === 'Half Day' || today.attendanceStatus === 'Half Day')) {
+      return (
+        <span className="badge px-2.5 py-1.5 rounded-pill d-inline-flex align-items-center gap-1.5 fw-medium" style={{ backgroundColor: 'rgba(253, 126, 20, 0.12)', color: '#fd7e14', border: '1px solid rgba(253, 126, 20, 0.25)' }}>
+          <FaClock size={11} />
+          <span>Half Day</span>
+        </span>
+      );
+    }
+
+    // 6. Default: Not Checked In
+    return (
+      <span className="badge bg-light text-secondary border border-secondary border-opacity-25 px-2.5 py-1.5 rounded-pill d-inline-flex align-items-center gap-1.5 fw-medium">
+        <FaExclamationCircle className="text-warning" size={11} />
+        <span>Not Checked In</span>
+      </span>
+    );
   };
 
   const getStatusBadge = (status) => {
@@ -142,6 +204,10 @@ const EmployeeList = () => {
     }
     return <span className="badge bg-secondary px-2 py-1 rounded-pill">Inactive</span>;
   };
+
+  const checkedInCount = employees.filter((e) => e.todayAttendance?.checkedIn && !e.todayAttendance?.checkedOut && e.todayAttendance?.status !== 'Absent' && e.todayAttendance?.status !== 'Leave').length;
+  const notCheckedInCount = employees.filter((e) => !e.todayAttendance?.checkedIn).length;
+  const checkedOutCount = employees.filter((e) => e.todayAttendance?.checkedOut).length;
 
   return (
     <div className="container-fluid px-0">
@@ -154,11 +220,44 @@ const EmployeeList = () => {
           { label: 'Staff Directory' }
         ]}
         actions={
-          <button className="btn btn-orange d-flex align-items-center gap-2 shadow-sm" onClick={handleOpenAddModal}>
-            <FaUserPlus /> <span>Add New Employee</span>
-          </button>
+          <div className="d-flex align-items-center gap-2">
+            <Link to="/admin-attendance" className="btn btn-outline-navy d-flex align-items-center gap-2 shadow-sm">
+              <FaUserClock className="text-orange" /> <span>Manage Attendance</span>
+            </Link>
+            <button className="btn btn-orange d-flex align-items-center gap-2 shadow-sm" onClick={handleOpenAddModal}>
+              <FaUserPlus /> <span>Add New Employee</span>
+            </button>
+          </div>
         }
       />
+
+      {/* Quick Attendance & Staff Status Bar */}
+      <div className="row g-3 mb-4">
+        <div className="col-6 col-md-3">
+          <div className="card border-0 shadow-sm rounded-3 p-3 bg-white border-start border-4 border-primary h-100">
+            <div className="text-muted small text-uppercase fw-semibold">Total Staff</div>
+            <div className="fs-4 fw-bold text-navy">{total}</div>
+          </div>
+        </div>
+        <div className="col-6 col-md-3">
+          <div className="card border-0 shadow-sm rounded-3 p-3 bg-white border-start border-4 border-success h-100">
+            <div className="text-muted small text-uppercase fw-semibold">Checked In Today</div>
+            <div className="fs-4 fw-bold text-success">{checkedInCount}</div>
+          </div>
+        </div>
+        <div className="col-6 col-md-3">
+          <div className="card border-0 shadow-sm rounded-3 p-3 bg-white border-start border-4 border-warning h-100">
+            <div className="text-muted small text-uppercase fw-semibold">Not Checked In</div>
+            <div className="fs-4 fw-bold text-warning">{notCheckedInCount}</div>
+          </div>
+        </div>
+        <div className="col-6 col-md-3">
+          <div className="card border-0 shadow-sm rounded-3 p-3 bg-white border-start border-4 border-secondary h-100">
+            <div className="text-muted small text-uppercase fw-semibold">Shift Ended (Checked Out)</div>
+            <div className="fs-4 fw-bold text-secondary">{checkedOutCount}</div>
+          </div>
+        </div>
+      </div>
 
       {/* Search and Filters */}
       <div className="card border-0 shadow-sm rounded-3 mb-4">
@@ -190,8 +289,9 @@ const EmployeeList = () => {
             <div className="col-md-2">
               <select className="form-select bg-light" value={availabilityFilter} onChange={handleFilterChange(setAvailabilityFilter, 'availability')}>
                 <option value="">All Availability</option>
-                <option value="Available">Available</option>
-                <option value="Busy">Busy</option>
+                <option value="Checked In">Checked In</option>
+                <option value="Checked Out">Checked Out</option>
+                <option value="Not Checked In">Not Checked In</option>
                 <option value="Leave">On Leave</option>
               </select>
             </div>
@@ -238,7 +338,7 @@ const EmployeeList = () => {
                   <th className="px-3 py-3 border-0">Exp.</th>
                   <th className="px-3 py-3 border-0">Availability</th>
                   <th className="px-3 py-3 border-0">Status</th>
-                  <th className="px-3 py-3 border-0 text-center">Actions</th>
+                  <th className="px-3 py-3 border-0 text-center" style={{ minWidth: '220px' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -256,23 +356,36 @@ const EmployeeList = () => {
                     <td className="px-3 py-3">{getRoleBadge(emp.role)}</td>
                     <td className="px-3 py-3 fw-medium text-secondary">{emp.specialization}</td>
                     <td className="px-3 py-3 fw-semibold">{emp.experience} yrs</td>
-                    <td className="px-3 py-3">{getAvailabilityBadge(emp.availability)}</td>
+                    <td className="px-3 py-3">{getAvailabilityBadge(emp)}</td>
                     <td className="px-3 py-3">{getStatusBadge(emp.status)}</td>
                     <td className="px-3 py-3">
-                      <div className="d-flex gap-2 justify-content-center">
-                        <button
-                          className="btn btn-sm btn-light text-primary border"
-                          onClick={() => handleOpenEditModal(emp)}
-                          title="Edit Employee"
+                      <div className="d-flex gap-1.5 justify-content-center align-items-center flex-wrap">
+                        {/* Attendance Link */}
+                        <Link
+                          to="/admin-attendance"
+                          className="btn btn-sm btn-light text-navy border px-2.5 py-1 d-inline-flex align-items-center gap-1 shadow-sm"
+                          title="View Attendance Console"
                         >
-                          <FaEdit />
-                        </button>
+                          <FaUserClock size={12} className="text-orange" />
+                          <span className="small fw-semibold">Attendance</span>
+                        </Link>
+
+                        {/* Edit Employee */}
                         <button
-                          className="btn btn-sm btn-light text-danger border"
+                          className="btn btn-sm btn-light text-primary border px-2 py-1"
+                          onClick={() => handleOpenEditModal(emp)}
+                          title="Edit Employee Details"
+                        >
+                          <FaEdit size={13} />
+                        </button>
+
+                        {/* Delete Employee */}
+                        <button
+                          className="btn btn-sm btn-light text-danger border px-2 py-1"
                           onClick={() => { setDeleteId(emp._id); setShowDeleteModal(true); }}
                           title="Delete Employee"
                         >
-                          <FaTrash />
+                          <FaTrash size={13} />
                         </button>
                       </div>
                     </td>

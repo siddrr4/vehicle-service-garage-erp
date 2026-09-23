@@ -42,6 +42,7 @@ const VehicleRegistration = () => {
   const [loadingCustomers, setLoadingCustomers] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
+  const [serverError, setServerError] = useState('');
 
   useEffect(() => {
     const fetchAllCustomers = async () => {
@@ -67,14 +68,15 @@ const VehicleRegistration = () => {
       }
       return updated;
     });
+    if (serverError) setServerError('');
     // Clear the individual field error on change
     setErrors((prev) => {
       const updatedErrors = { ...prev };
       if (updatedErrors[name]) {
-        updatedErrors[name] = '';
+        delete updatedErrors[name];
       }
       if (name === 'purchaseType' && value === 'New') {
-        updatedErrors.currentOdometerReading = '';
+        delete updatedErrors.currentOdometerReading;
       }
       return updatedErrors;
     });
@@ -112,6 +114,7 @@ const VehicleRegistration = () => {
 
     try {
       setSaving(true);
+      setServerError('');
       await createVehicle(formData);
       toast.success('Vehicle registered successfully!');
       if (initialCustomerId) {
@@ -120,7 +123,13 @@ const VehicleRegistration = () => {
         navigate('/vehicles');
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Error registering vehicle');
+      const message = error.response?.data?.message || 'Error registering vehicle';
+      const field = error.response?.data?.field;
+      toast.error(message);
+      setServerError(message);
+      if (field) {
+        setErrors((prev) => ({ ...prev, [field]: message }));
+      }
     } finally {
       setSaving(false);
     }
@@ -129,6 +138,7 @@ const VehicleRegistration = () => {
   const handleReset = () => {
     setFormData({ ...initialFormState, customerId: initialCustomerId });
     setErrors({});
+    setServerError('');
   };
 
   if (loadingCustomers) return <LoadingSpinner />;
@@ -164,6 +174,18 @@ const VehicleRegistration = () => {
       </div>
 
       <form id="vehicle-registration-form" onSubmit={onSubmit} noValidate>
+        {serverError && (
+          <div className="alert alert-danger alert-dismissible fade show d-flex align-items-center mb-4 shadow-sm" role="alert">
+            <FaInfoCircle className="me-2 flex-shrink-0" size={18} />
+            <div className="flex-grow-1">{serverError}</div>
+            <button
+              type="button"
+              className="btn-close"
+              aria-label="Close"
+              onClick={() => setServerError('')}
+            ></button>
+          </div>
+        )}
         {/* ── Section 1: Customer Association ── */}
         <div className="bg-card p-4 p-md-5 mb-4">
           <h5 className="text-navy fw-bold mb-4 d-flex align-items-center gap-2">
@@ -419,12 +441,15 @@ const VehicleRegistration = () => {
               <input
                 id="engineNumber"
                 type="text"
-                className="form-control text-uppercase"
+                className={`form-control text-uppercase ${errors.engineNumber ? 'is-invalid' : ''}`}
                 name="engineNumber"
                 value={formData.engineNumber}
                 onChange={onChange}
                 placeholder="Optional"
               />
+              {errors.engineNumber && (
+                <div className="invalid-feedback">{errors.engineNumber}</div>
+              )}
             </div>
 
             <div className="col-md-4">
@@ -434,13 +459,16 @@ const VehicleRegistration = () => {
               <input
                 id="chassisNumber"
                 type="text"
-                className="form-control text-uppercase"
+                className={`form-control text-uppercase ${errors.chassisNumber ? 'is-invalid' : ''}`}
                 name="chassisNumber"
                 value={formData.chassisNumber}
                 onChange={onChange}
                 maxLength="17"
                 placeholder="Up to 17 characters"
               />
+              {errors.chassisNumber && (
+                <div className="invalid-feedback">{errors.chassisNumber}</div>
+              )}
             </div>
 
             <div className="col-md-4">
@@ -450,13 +478,16 @@ const VehicleRegistration = () => {
               <input
                 id="insuranceNumber"
                 type="text"
-                className="form-control"
+                className={`form-control text-uppercase ${errors.insuranceNumber ? 'is-invalid' : ''}`}
                 name="insuranceNumber"
                 value={formData.insuranceNumber}
                 onChange={onChange}
-                maxLength="20"
+                maxLength="50"
                 placeholder="Optional"
               />
+              {errors.insuranceNumber && (
+                <div className="invalid-feedback">{errors.insuranceNumber}</div>
+              )}
             </div>
 
             <div className="col-md-4">

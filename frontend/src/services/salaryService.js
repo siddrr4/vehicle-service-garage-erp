@@ -37,6 +37,16 @@ export const deleteSalaryStructure = async (id) => {
   return data;
 };
 
+export const getDuplicateSalaryStructures = async () => {
+  const { data } = await api.get('/salary/duplicates');
+  return data;
+};
+
+export const cleanupSalaryDuplicates = async () => {
+  const { data } = await api.post('/salary/cleanup-duplicates');
+  return data;
+};
+
 const salaryService = {
   getSalaryStructures,
   getSalaryStructureByEmployee,
@@ -44,6 +54,8 @@ const salaryService = {
   updateSalaryStructure,
   toggleSalaryStructureStatus,
   deleteSalaryStructure,
+  getDuplicateSalaryStructures,
+  cleanupSalaryDuplicates,
 };
 
 export default salaryService;

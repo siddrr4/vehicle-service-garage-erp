@@ -78,6 +78,34 @@ h1, h2, h3, h4, h5, h6,
   font-weight: 700;
   letter-spacing: -0.015em;
   margin-bottom: 0.5rem;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+
+/* Ensure blinking text insertion caret ONLY appears in genuine editable inputs */
+:not(input):not(textarea):not([contenteditable="true"]) {
+  caret-color: transparent;
+}
+
+input, textarea, [contenteditable="true"] {
+  caret-color: auto;
+}
+
+/* Non-editable UI headers, card headers, labels, and table headers default to standard cursor */
+.card-header,
+.card-title,
+.page-header,
+.badge,
+.form-label,
+.table thead th {
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+
+.btn, .nav-link, .clickable {
+  cursor: pointer;
 }
 
 a {

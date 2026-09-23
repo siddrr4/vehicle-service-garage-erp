@@ -5,7 +5,13 @@ import { toast } from 'react-toastify';
 import attendanceService from '../../services/attendanceService';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
 import PageHeader from '../../components/UI/PageHeader';
-import { getIndiaDateStr, formatTimeIST, formatWorkingHoursDisplay } from '../../utils/dateUtils';
+import {
+  getIndiaDateStr,
+  formatTimeIST,
+  formatWorkingHoursDisplay,
+  isSameDayHalfDayLocked,
+  HALF_DAY_LOCK_MESSAGE,
+} from '../../utils/dateUtils';
 
 const AdminAttendance = () => {
   const [selectedDate, setSelectedDate] = useState(getIndiaDateStr());
@@ -54,6 +60,11 @@ const AdminAttendance = () => {
   };
 
   const handleMarkStatus = async (employeeId, status) => {
+    if (status === 'Half Day' && isSameDayHalfDayLocked(selectedDate)) {
+      toast.error(HALF_DAY_LOCK_MESSAGE);
+      return;
+    }
+
     try {
       setMarkingId(employeeId);
       await attendanceService.markAttendance({
@@ -99,6 +110,7 @@ const AdminAttendance = () => {
   const todayStr = getIndiaDateStr();
   const isToday = selectedDate === todayStr;
   const isFuture = selectedDate > todayStr;
+  const isHalfDayLocked = isSameDayHalfDayLocked(selectedDate);
 
   return (
     <div className="container-fluid px-0">
@@ -132,6 +144,15 @@ const AdminAttendance = () => {
         </Alert>
       )}
 
+      {isToday && isHalfDayLocked && (
+        <Alert variant="warning" className="d-flex align-items-center gap-2 py-2.5 rounded-3 mb-4 border-0 shadow-sm bg-warning bg-opacity-10 text-dark">
+          <FaInfoCircle size={18} className="text-warning flex-shrink-0" />
+          <div>
+            <strong>Working Day Completed (09:00 AM – 07:00 PM):</strong> Half Day Leave is locked for today because official workshop working hours have ended.
+          </div>
+        </Alert>
+      )}
+
       {loading ? (
         <LoadingSpinner />
       ) : (
@@ -160,6 +181,11 @@ const AdminAttendance = () => {
                     <h3 className="fw-bold mb-0 text-success mt-1">
                       {isFuture ? summary?.unprocessedEmployees || 0 : summary?.presentEmployees || 0}
                     </h3>
+                    {!isFuture && (summary?.lateEmployees || 0) > 0 && (
+                      <div className="small text-muted mt-1" style={{ fontSize: '0.72rem' }}>
+                        Includes {summary.lateEmployees} late {summary.lateEmployees === 1 ? 'arrival' : 'arrivals'}
+                      </div>
+                    )}
                   </div>
                   <div className="p-3 bg-success bg-opacity-10 text-success rounded-circle border border-success border-opacity-25">
                     <FaUserCheck size={20} />
@@ -247,13 +273,23 @@ const AdminAttendance = () => {
                             <small className="text-muted">{item.employee?.specialization}</small>
                           </td>
                           <td className="px-4 py-3 text-dark fw-medium">
-                            {item.checkIn ? formatTimeIST(item.checkIn) : item.isExplicit === false ? 'Not Recorded' : '--:--'}
+                            {item.status === 'Absent' || item.status === 'Leave'
+                              ? '--:--'
+                              : item.checkIn ? formatTimeIST(item.checkIn) : item.isExplicit === false ? 'Not Recorded' : '--:--'}
                           </td>
                           <td className="px-4 py-3 text-dark fw-medium">
-                            {item.checkOut ? formatTimeIST(item.checkOut) : item.isExplicit === false ? 'Not Recorded' : '--:--'}
+                            {item.status === 'Absent' || item.status === 'Leave'
+                              ? '--:--'
+                              : item.checkOut ? formatTimeIST(item.checkOut) : item.isExplicit === false ? 'Not Recorded' : '--:--'}
                           </td>
                           <td className="px-4 py-3 fw-semibold text-primary">
-                            {formatWorkingHoursDisplay(item.workingHours, Boolean(item.checkIn), Boolean(item.checkOut), item.isExplicit)}
+                            {item.status === 'Absent' ? (
+                              <span className="text-muted small">0h (Absent)</span>
+                            ) : item.status === 'Leave' ? (
+                              <span className="text-muted small">Leave</span>
+                            ) : (
+                              formatWorkingHoursDisplay(item.workingHours, Boolean(item.checkIn), Boolean(item.checkOut), item.isExplicit)
+                            )}
                           </td>
                           <td className="px-4 py-3 text-center">
                             {getStatusBadge(item.status || item.attendanceStatus, item.isExplicit)}
@@ -262,44 +298,122 @@ const AdminAttendance = () => {
                             {isFuture ? (
                               <span className="small text-muted">No action (Future)</span>
                             ) : (
-                              <Dropdown align="end" className="d-inline-block">
-                                <Dropdown.Toggle
-                                  size="sm"
-                                  variant="outline-secondary"
-                                  id={`dropdown-att-${item.employee?._id}`}
-                                  disabled={markingId === item.employee?._id}
-                                >
-                                  {markingId === item.employee?._id ? 'Saving...' : 'Set Status'}
-                                </Dropdown.Toggle>
-                                <Dropdown.Menu>
-                                  <Dropdown.Item onClick={() => handleMarkStatus(item.employee._id, 'Present')}>
-                                    <span className="text-success fw-semibold">&bull; Mark Present</span>
-                                  </Dropdown.Item>
-                                  <Dropdown.Item onClick={() => handleMarkStatus(item.employee._id, 'Absent')}>
-                                    <span className="text-danger fw-semibold">&bull; Mark Absent (LOP)</span>
-                                  </Dropdown.Item>
-                                  <Dropdown.Item onClick={() => handleMarkStatus(item.employee._id, 'Leave')}>
-                                    <span className="text-info fw-semibold">&bull; Mark Leave (Approved)</span>
-                                  </Dropdown.Item>
-                                  <Dropdown.Item onClick={() => handleMarkStatus(item.employee._id, 'Half Day')}>
-                                    <span className="text-warning fw-semibold">&bull; Mark Half Day</span>
-                                  </Dropdown.Item>
-                                  {isToday && item.employee?.role === 'Mechanic' && (
-                                    <>
-                                      <Dropdown.Divider />
-                                      {!item.checkIn ? (
-                                        <Dropdown.Item onClick={() => handleAdminCheckIn(item.employee._id)}>
-                                          Check In Mechanic
-                                        </Dropdown.Item>
-                                      ) : !item.checkOut ? (
-                                        <Dropdown.Item onClick={() => handleAdminCheckOut(item.employee._id)}>
-                                          Check Out Mechanic
-                                        </Dropdown.Item>
-                                      ) : null}
-                                    </>
-                                  )}
-                                </Dropdown.Menu>
-                              </Dropdown>
+                              <div className="d-inline-flex align-items-center gap-1.5 justify-content-end">
+                                {isToday && (
+                                  <>
+                                    {item.status === 'Absent' ? (
+                                      <span className="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-2 py-1.5 small">
+                                        Absent (LOP)
+                                      </span>
+                                    ) : item.status === 'Leave' ? (
+                                      <span className="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-2 py-1.5 small">
+                                        On Leave
+                                      </span>
+                                    ) : item.status === 'Half Day' ? (
+                                      <span className="badge bg-warning bg-opacity-15 text-warning border border-warning border-opacity-25 px-2 py-1.5 small">
+                                        Checked Out
+                                      </span>
+                                    ) : !item.checkIn ? (
+                                      <Button
+                                        size="sm"
+                                        variant="outline-success"
+                                        className="px-2.5 py-1 fw-semibold d-inline-flex align-items-center gap-1"
+                                        onClick={() => handleAdminCheckIn(item.employee?._id)}
+                                        disabled={loading || markingId === item.employee?._id}
+                                        title="Record Check-In for today"
+                                      >
+                                        <FaUserCheck size={12} />
+                                        <span>Check In</span>
+                                      </Button>
+                                    ) : !item.checkOut ? (
+                                      <Button
+                                        size="sm"
+                                        variant="outline-warning"
+                                        className="text-dark px-2.5 py-1 fw-semibold d-inline-flex align-items-center gap-1"
+                                        onClick={() => handleAdminCheckOut(item.employee?._id)}
+                                        disabled={loading || markingId === item.employee?._id}
+                                        title="Record Check-Out for today"
+                                      >
+                                        <FaClock size={12} />
+                                        <span>Check Out</span>
+                                      </Button>
+                                    ) : (
+                                      <Button
+                                        size="sm"
+                                        variant="outline-secondary"
+                                        className="px-2 py-1 small d-inline-flex align-items-center gap-1"
+                                        onClick={() => handleAdminCheckIn(item.employee?._id)}
+                                        disabled={loading || markingId === item.employee?._id}
+                                        title="Re-check in employee"
+                                      >
+                                        <FaUserCheck size={11} />
+                                        <span style={{ fontSize: '0.75rem' }}>Re-Check In</span>
+                                      </Button>
+                                    )}
+                                  </>
+                                )}
+
+                                <Dropdown align="end" className="d-inline-block">
+                                  <Dropdown.Toggle
+                                    size="sm"
+                                    variant="outline-secondary"
+                                    id={`dropdown-att-${item.employee?._id}`}
+                                    disabled={markingId === item.employee?._id}
+                                  >
+                                    {markingId === item.employee?._id ? 'Saving...' : 'Set Status'}
+                                  </Dropdown.Toggle>
+                                  <Dropdown.Menu>
+                                    <Dropdown.Item onClick={() => handleMarkStatus(item.employee._id, 'Present')}>
+                                      <span className="text-success fw-semibold">&bull; Mark Present</span>
+                                    </Dropdown.Item>
+                                    <Dropdown.Item onClick={() => handleMarkStatus(item.employee._id, 'Absent')}>
+                                      <span className="text-danger fw-semibold">&bull; Mark Absent (LOP)</span>
+                                    </Dropdown.Item>
+                                    <Dropdown.Item onClick={() => handleMarkStatus(item.employee._id, 'Leave')}>
+                                      <span className="text-info fw-semibold">&bull; Mark Leave (Approved)</span>
+                                    </Dropdown.Item>
+                                    <Dropdown.Item
+                                      onClick={() => {
+                                        if (isHalfDayLocked) {
+                                          toast.error(HALF_DAY_LOCK_MESSAGE);
+                                          return;
+                                        }
+                                        handleMarkStatus(item.employee._id, 'Half Day');
+                                      }}
+                                      disabled={isHalfDayLocked}
+                                      title={isHalfDayLocked ? 'Half Day Leave is unavailable after 07:00 PM.' : undefined}
+                                      className={isHalfDayLocked ? 'text-muted opacity-75' : ''}
+                                    >
+                                      <span className={isHalfDayLocked ? 'text-muted' : 'text-warning fw-semibold'}>
+                                        &bull; Mark Half Day
+                                      </span>
+                                      {isHalfDayLocked && (
+                                        <span className="badge bg-secondary ms-2" style={{ fontSize: '0.65rem' }}>
+                                          Unavailable after 7 PM
+                                        </span>
+                                      )}
+                                    </Dropdown.Item>
+                                    {isToday && (
+                                      <>
+                                        <Dropdown.Divider />
+                                        {!item.checkIn ? (
+                                          <Dropdown.Item onClick={() => handleAdminCheckIn(item.employee._id)}>
+                                            <span className="text-success fw-semibold">Check In Employee</span>
+                                          </Dropdown.Item>
+                                        ) : !item.checkOut ? (
+                                          <Dropdown.Item onClick={() => handleAdminCheckOut(item.employee._id)}>
+                                            <span className="text-warning text-dark fw-semibold">Check Out Employee</span>
+                                          </Dropdown.Item>
+                                        ) : (
+                                          <Dropdown.Item onClick={() => handleAdminCheckIn(item.employee._id)}>
+                                            <span className="text-primary fw-semibold">Re-Check In Employee</span>
+                                          </Dropdown.Item>
+                                        )}
+                                      </>
+                                    )}
+                                  </Dropdown.Menu>
+                                </Dropdown>
+                              </div>
                             )}
                           </td>
                         </tr>

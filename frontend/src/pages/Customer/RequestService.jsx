@@ -48,9 +48,14 @@ const RequestService = () => {
     }
   }, [formData.preferredDate]);
 
-  const fetchSlots = async (date) => {
+  const fetchSlots = async (rawDate) => {
     try {
       setLoadingSlots(true);
+      let date = rawDate;
+      if (typeof rawDate === 'string' && /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(rawDate)) {
+        const [m, d, y] = rawDate.split('/');
+        date = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      }
       const res = await appointmentService.getAvailableSlots(date);
       setAvailableSlots(res.slots || []);
       // Automatically preselect first available slot if any
@@ -78,10 +83,15 @@ const RequestService = () => {
 
     try {
       setSubmitting(true);
+      let apptDate = formData.preferredDate;
+      if (typeof apptDate === 'string' && /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(apptDate)) {
+        const [m, d, y] = apptDate.split('/');
+        apptDate = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      }
       const appointmentData = {
         vehicle: formData.vehicleId,
         serviceType: formData.serviceType,
-        appointmentDate: formData.preferredDate,
+        appointmentDate: apptDate,
         preferredTime: formData.preferredTime,
         problemDescription: formData.description,
         bookingType: 'Online',

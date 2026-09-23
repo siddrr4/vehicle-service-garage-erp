@@ -40,9 +40,14 @@ const BookAppointment = () => {
     }
   }, [formData.appointmentDate]);
 
-  const fetchSlots = async (date) => {
+  const fetchSlots = async (rawDate) => {
     try {
       setLoadingSlots(true);
+      let date = rawDate;
+      if (typeof rawDate === 'string' && /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(rawDate)) {
+        const [m, d, y] = rawDate.split('/');
+        date = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      }
       const res = await appointmentService.getAvailableSlots(date);
       const slots = res.slots || [];
       setAvailableSlots(slots);

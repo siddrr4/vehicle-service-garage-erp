@@ -5,7 +5,7 @@ import {
   FaReceipt, FaSearch, FaFilter, FaCalendarAlt, 
   FaMoneyCheckAlt, FaCheckCircle, FaClock, FaPrint, 
   FaExclamationTriangle, FaUserTie, FaFileInvoiceDollar, FaSyncAlt,
-  FaInfoCircle
+  FaInfoCircle, FaLock
 } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import payrollService from '../../services/payrollService';
@@ -29,6 +29,11 @@ const PayrollList = () => {
     totalPending: 0,
     paidCount: 0,
     pendingCount: 0,
+  });
+  const [pastDisbursedStats, setPastDisbursedStats] = useState({
+    totalPaid: 0,
+    paidCount: 0,
+    periodLabel: '',
   });
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -94,6 +99,29 @@ const PayrollList = () => {
         { totalGross: 0, totalNet: 0, totalPaid: 0, totalPending: 0, paidCount: 0, pendingCount: 0 }
       );
       setStats(computedStats);
+
+      // Also fetch past period disbursed salary (e.g. August 2026 / previous month)
+      const prevM = Number(month) === 1 ? 12 : Number(month) - 1;
+      const prevY = Number(month) === 1 ? Number(year) - 1 : Number(year);
+      const prevMonthLabel = months.find((m) => m.value === prevM)?.label || '';
+      try {
+        const pastData = await payrollService.getPayrolls({
+          month: prevM,
+          year: prevY,
+          paymentStatus: 'Paid',
+          limit: 100,
+        });
+        const pastList = pastData.payrolls || [];
+        const pastTotal = pastList.reduce((sum, p) => sum + (p.netSalary || 0), 0);
+        setPastDisbursedStats({
+          totalPaid: pastTotal,
+          paidCount: pastList.length,
+          periodLabel: `${prevMonthLabel} ${prevY}`,
+        });
+      } catch (err) {
+        console.error('Failed to fetch past period payrolls:', err);
+      }
+
       setLoading(false);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to fetch payroll records');
@@ -196,9 +224,37 @@ const PayrollList = () => {
                 <FaCheckCircle size={22} />
               </div>
               <div>
-                <div className="text-muted small fw-medium">Disbursed (Paid)</div>
-                <h4 className="fw-bold text-success mb-0">₹{stats.totalPaid.toLocaleString('en-IN')}</h4>
-                <div className="text-muted small mt-1">{stats.paidCount} Employees Paid</div>
+                <div className="text-muted small fw-medium">
+                  {stats.totalPaid > 0
+                    ? 'Disbursed (Paid)'
+                    : pastDisbursedStats.totalPaid > 0
+                    ? `Disbursed (${pastDisbursedStats.periodLabel})`
+                    : 'Disbursed (Paid)'}
+                </div>
+                <h4 className="fw-bold text-success mb-0">
+                  ₹{(stats.totalPaid > 0
+                    ? stats.totalPaid
+                    : pastDisbursedStats.totalPaid > 0
+                    ? pastDisbursedStats.totalPaid
+                    : 0
+                  ).toLocaleString('en-IN')}
+                </h4>
+                <div className="text-muted small mt-1">
+                  {stats.totalPaid > 0 ? (
+                    `${stats.paidCount} Employees Paid (${selectedMonthLabel} ${year})`
+                  ) : pastDisbursedStats.totalPaid > 0 ? (
+                    <span>
+                      {pastDisbursedStats.periodLabel} Disbursed • {pastDisbursedStats.paidCount} Paid
+                    </span>
+                  ) : (
+                    '0 Employees Paid'
+                  )}
+                </div>
+                {stats.totalPaid === 0 && pastDisbursedStats.totalPaid > 0 && (
+                  <div className="small text-muted mt-1" style={{ fontSize: '0.72rem' }}>
+                    <span className="text-warning fw-semibold">{selectedMonthLabel} {year}:</span> Unlocks on month-end
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -400,15 +456,28 @@ const PayrollList = () => {
                           <FaPrint size={12} /> <span>Payslip</span>
                         </Button>
                         {p.paymentStatus !== 'Paid' && (
-                          <Button
-                            variant="success"
-                            size="sm"
-                            className="d-flex align-items-center gap-1"
-                            onClick={() => handleOpenPayModal(p)}
-                            title="Record Payment"
-                          >
-                            <FaMoneyCheckAlt size={12} /> <span>Pay</span>
-                          </Button>
+                          (year < todayParts.year || (year === todayParts.year && month < todayParts.month) || (year === todayParts.year && month === todayParts.month && todayParts.day >= new Date(year, month, 0).getDate())) ? (
+                            <Button
+                              variant="success"
+                              size="sm"
+                              className="d-flex align-items-center gap-1 shadow-sm"
+                              onClick={() => handleOpenPayModal(p)}
+                              title="Record Payment"
+                            >
+                              <FaMoneyCheckAlt size={12} /> <span>Pay</span>
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="outline-secondary"
+                              size="sm"
+                              className="d-flex align-items-center gap-1 text-muted"
+                              disabled
+                              style={{ cursor: 'not-allowed', opacity: 0.75 }}
+                              title={`Ongoing month: Payment opens at the end of the month (${selectedMonthLabel} ${new Date(year, month, 0).getDate()}, ${year})`}
+                            >
+                              <FaLock size={10} /> <span>Pay at Month End</span>
+                            </Button>
+                          )
                         )}
                       </div>
                     </td>

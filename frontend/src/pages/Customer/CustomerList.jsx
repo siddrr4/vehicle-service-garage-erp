@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Table, Button, Form, InputGroup, Pagination, Card, Row, Col } from 'react-bootstrap';
-import { FaPlus, FaEye, FaEdit, FaTrash, FaFilter, FaUsers, FaSearch } from 'react-icons/fa';
+import { FaPlus, FaEye, FaEdit, FaTrash, FaFilter, FaUsers, FaSearch, FaUserCheck, FaCar } from 'react-icons/fa';
 import { getCustomers, deleteCustomer } from '../../services/customerService';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
 import PageHeader from '../../components/UI/PageHeader';
+import StatCard from '../../components/UI/StatCard';
 import StatusBadge from '../../components/UI/StatusBadge';
 import EmptyState from '../../components/UI/EmptyState';
 import { toast } from 'react-toastify';
@@ -16,6 +17,11 @@ const CustomerList = () => {
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [stats, setStats] = useState({
+    totalCustomers: 0,
+    activeCustomers: 0,
+    totalVehicles: 0
+  });
   const [filter, setFilter] = useState('Newest');
   const [cityFilter, setCityFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -26,7 +32,17 @@ const CustomerList = () => {
       const data = await getCustomers(currentPage, 10, currentKeyword);
       setCustomers(data.customers || []);
       setPages(data.pages || 1);
-      setTotal(data.total || (data.customers || []).length);
+      const returnedTotal = data.total ?? (data.customers || []).length;
+      setTotal(returnedTotal);
+      if (data.stats) {
+        setStats(data.stats);
+      } else {
+        setStats({
+          totalCustomers: returnedTotal,
+          activeCustomers: (data.customers || []).filter(c => (c.status || 'Active') === 'Active').length,
+          totalVehicles: (data.customers || []).reduce((acc, c) => acc + (c.totalVehicles || 0), 0)
+        });
+      }
       setLoading(false);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Error fetching customers');
@@ -42,6 +58,17 @@ const CustomerList = () => {
     e.preventDefault();
     setPage(1);
     fetchCustomers(1, keyword);
+  };
+
+  const hasActiveFilters = Boolean(keyword || cityFilter || statusFilter || filter !== 'Newest');
+
+  const handleResetFilters = () => {
+    setKeyword('');
+    setCityFilter('');
+    setStatusFilter('');
+    setFilter('Newest');
+    setPage(1);
+    fetchCustomers(1, '');
   };
 
   const handleDelete = async (id) => {
@@ -71,8 +98,15 @@ const CustomerList = () => {
   return (
     <div className="container-fluid p-0">
       <PageHeader
-        title="Customer Management"
-        subtitle="View, register and manage garage customers and their linked vehicle profiles"
+        title={
+          <div className="d-inline-flex align-items-center gap-2">
+            <span>Customer Management</span>
+            <span className="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2.5 py-1 rounded-pill fs-6 fw-semibold">
+              {stats.totalCustomers || total} Total
+            </span>
+          </div>
+        }
+        subtitle={`Directory of ${stats.totalCustomers || total} registered garage customers and their linked vehicle profiles`}
         breadcrumbs={[
           { label: 'Dashboard', path: '/admin-dashboard' },
           { label: 'Customers' }
@@ -84,9 +118,49 @@ const CustomerList = () => {
         }
       />
 
+      {/* KPI Overview Row */}
+      <Row className="g-3 mb-4">
+        <Col xs={12} sm={6} lg={3}>
+          <StatCard
+            title="Total Customers"
+            value={stats.totalCustomers || total}
+            icon={<FaUsers size={20} />}
+            color="primary"
+            subtext="Registered customer accounts"
+          />
+        </Col>
+        <Col xs={12} sm={6} lg={3}>
+          <StatCard
+            title="Active Customers"
+            value={stats.activeCustomers || filteredAndSortedCustomers.filter(c => (c.status || 'Active') === 'Active').length}
+            icon={<FaUserCheck size={20} />}
+            color="success"
+            subtext="Active service accounts"
+          />
+        </Col>
+        <Col xs={12} sm={6} lg={3}>
+          <StatCard
+            title="Customer Vehicles"
+            value={stats.totalVehicles ?? filteredAndSortedCustomers.reduce((acc, c) => acc + (c.totalVehicles || 0), 0)}
+            icon={<FaCar size={20} />}
+            color="orange"
+            subtext="Fleet linked to customers"
+          />
+        </Col>
+        <Col xs={12} sm={6} lg={3}>
+          <StatCard
+            title="Showing on Page"
+            value={filteredAndSortedCustomers.length}
+            icon={<FaFilter size={20} />}
+            color="info"
+            subtext={hasActiveFilters ? 'Active filter matches' : `Page ${page} of ${pages || 1}`}
+          />
+        </Col>
+      </Row>
+
       <Card className="border-0 shadow-sm bg-card mb-4">
         <Card.Body className="p-4">
-          <Row className="g-3 mb-4 align-items-center">
+          <Row className="g-3 mb-3 align-items-center">
             <Col md={5} lg={4}>
               <Form onSubmit={handleSearch}>
                 <InputGroup>
@@ -138,6 +212,21 @@ const CustomerList = () => {
               </div>
             </Col>
           </Row>
+
+          <div className="d-flex flex-wrap justify-content-between align-items-center mb-3 px-1 text-muted small">
+            <div>
+              Showing <strong className="text-navy">{filteredAndSortedCustomers.length}</strong> of <strong className="text-navy">{total}</strong> {hasActiveFilters ? 'filtered' : 'registered'} customers
+            </div>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                className="btn btn-link btn-sm p-0 text-decoration-none text-primary"
+                onClick={handleResetFilters}
+              >
+                Reset filters
+              </button>
+            )}
+          </div>
 
           {loading ? (
             <div className="text-center py-5"><LoadingSpinner /></div>
@@ -212,9 +301,11 @@ const CustomerList = () => {
                 </Table>
               </div>
 
-              {pages > 1 && (
-                <div className="d-flex justify-content-between align-items-center mt-4">
-                  <small className="text-muted">Page {page} of {pages}</small>
+              <div className="d-flex flex-column flex-sm-row justify-content-between align-items-center gap-2 mt-4 pt-3 border-top border-light">
+                <small className="text-muted">
+                  Showing <strong>{filteredAndSortedCustomers.length}</strong> of <strong>{total}</strong> total customers {pages > 1 ? `• Page ${page} of ${pages}` : ''}
+                </small>
+                {pages > 1 && (
                   <Pagination className="mb-0">
                     <Pagination.Prev disabled={page === 1} onClick={() => setPage(p => p - 1)} />
                     {[...Array(pages).keys()].map((x) => (
@@ -224,8 +315,8 @@ const CustomerList = () => {
                     ))}
                     <Pagination.Next disabled={page === pages} onClick={() => setPage(p => p + 1)} />
                   </Pagination>
-                </div>
-              )}
+                )}
+              </div>
             </>
           )}
         </Card.Body>

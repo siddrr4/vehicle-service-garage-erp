@@ -166,6 +166,7 @@ function App() {
 
             {/* Employee Management Routes */}
             <Route path="/employees" element={<EmployeeList />} />
+            <Route path="/attendance" element={<AdminAttendance />} />
             <Route path="/admin-attendance" element={<AdminAttendance />} />
             <Route path="/salary" element={<SalaryManagement />} />
             <Route path="/payroll" element={<PayrollList />} />

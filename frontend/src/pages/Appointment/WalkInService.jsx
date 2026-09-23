@@ -7,7 +7,7 @@ import {
   FaSearch, FaCar, FaUser, FaWrench, FaClipboardCheck, FaCheckCircle, 
   FaClock, FaGasPump, FaTachometerAlt, FaExclamationTriangle, FaPlus, 
   FaArrowRight, FaArrowLeft, FaTools, FaCalendarCheck, FaWalking, FaPrint,
-  FaShieldAlt, FaAward, FaHistory, FaCheck, FaExclamationCircle
+  FaShieldAlt, FaAward, FaHistory, FaCheck, FaExclamationCircle, FaSync
 } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import PageHeader from '../../components/UI/PageHeader';
@@ -50,24 +50,40 @@ const WalkInService = () => {
   const navigate = useNavigate();
   const todayStr = getIndiaDateStr();
 
+  // Helper to read initial draft from sessionStorage
+  const getDraftState = (key, fallback) => {
+    try {
+      const saved = sessionStorage.getItem('walkin_service_draft');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed[key] !== undefined && parsed[key] !== null) {
+          return parsed[key];
+        }
+      }
+    } catch {
+      // Ignore parse errors
+    }
+    return fallback;
+  };
+
   // Wizard Step State: 1: Lookup, 2: Services, 3: Complaints & Inspection, 4: Capacity & Slot, 5: Assign & Finalize
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(() => getDraftState('currentStep', 1));
 
   // Step 1: Vehicle Lookup
-  const [regNumber, setRegNumber] = useState('');
+  const [regNumber, setRegNumber] = useState(() => getDraftState('regNumber', ''));
   const [searching, setSearching] = useState(false);
-  const [vehicleData, setVehicleData] = useState(null);
+  const [vehicleData, setVehicleData] = useState(() => getDraftState('vehicleData', null));
   const [searchAttempted, setSearchAttempted] = useState(false);
   const [vehicleNotFound, setVehicleNotFound] = useState(false);
 
   // Step 2: Selected Services (array of service objects)
-  const [selectedServices, setSelectedServices] = useState([PREDEFINED_SERVICES[2]]); // Default General Service
+  const [selectedServices, setSelectedServices] = useState(() => getDraftState('selectedServices', [PREDEFINED_SERVICES[2]])); // Default General Service
 
   // Step 3: Customer Complaints & Inspection
-  const [selectedComplaints, setSelectedComplaints] = useState(['General Inspection & Checkup']);
-  const [complaintRemarks, setComplaintRemarks] = useState('');
+  const [selectedComplaints, setSelectedComplaints] = useState(() => getDraftState('selectedComplaints', ['General Inspection & Checkup']));
+  const [complaintRemarks, setComplaintRemarks] = useState(() => getDraftState('complaintRemarks', ''));
   
-  const [inspection, setInspection] = useState({
+  const [inspection, setInspection] = useState(() => getDraftState('inspection', {
     engineOil: 'Good',
     brakes: 'Good',
     tyres: 'Good',
@@ -77,21 +93,65 @@ const WalkInService = () => {
     fuelLevel: '50%',
     odometerReading: '',
     remarks: ''
-  });
+  }));
 
   // Step 4: Live Capacity & Slot
   const [loadingCapacity, setLoadingCapacity] = useState(false);
   const [slotData, setSlotData] = useState(null);
-  const [selectedSlot, setSelectedSlot] = useState('09:00 AM - 10:00 AM');
+  const [recommendedSlotInfo, setRecommendedSlotInfo] = useState(null);
+  const [showAllSlots, setShowAllSlots] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState(() => getDraftState('selectedSlot', ''));
   const [joiningWaitlist, setJoiningWaitlist] = useState(false);
+  const [nextAvailableDateInfo, setNextAvailableDateInfo] = useState(null);
+  const [loadingNextDate, setLoadingNextDate] = useState(false);
 
   // Step 5: Mechanic Assignment & Creation
   const [loadingMechanics, setLoadingMechanics] = useState(false);
   const [activeMechanics, setActiveMechanics] = useState([]);
-  const [selectedMechanic, setSelectedMechanic] = useState('');
-  const [priority, setPriority] = useState('Medium');
-  const [advisorNotes, setAdvisorNotes] = useState('');
+  const [selectedMechanic, setSelectedMechanic] = useState(() => getDraftState('selectedMechanic', ''));
+  const [priority, setPriority] = useState(() => getDraftState('priority', 'Medium'));
+  const [advisorNotes, setAdvisorNotes] = useState(() => getDraftState('advisorNotes', ''));
   const [creatingJobCard, setCreatingJobCard] = useState(false);
+
+  // Sync draft state to sessionStorage whenever state changes
+  useEffect(() => {
+    try {
+      if (vehicleData) {
+        const draft = {
+          currentStep,
+          regNumber,
+          vehicleData,
+          selectedServices,
+          selectedComplaints,
+          complaintRemarks,
+          inspection,
+          selectedSlot,
+          selectedMechanic,
+          priority,
+          advisorNotes
+        };
+        sessionStorage.setItem('walkin_service_draft', JSON.stringify(draft));
+      }
+    } catch {
+      // sessionStorage full or unavailable
+    }
+  }, [
+    currentStep, regNumber, vehicleData, selectedServices,
+    selectedComplaints, complaintRemarks, inspection,
+    selectedSlot, selectedMechanic, priority, advisorNotes
+  ]);
+
+  // Prevent accidental page unload when walk-in service is in progress
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (vehicleData && !creatingJobCard) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [vehicleData, creatingJobCard]);
 
   // Fetch slot capacity whenever step 4 is entered
   useEffect(() => {
@@ -106,16 +166,19 @@ const WalkInService = () => {
   const loadCapacity = async () => {
     try {
       setLoadingCapacity(true);
-      const data = await appointmentService.getAvailableSlots(todayStr);
-      setSlotData(data);
-      if (data?.slots?.length > 0) {
-        const available = data.slots.find(s => s.available > 0);
-        if (available) {
-          setSelectedSlot(available.time);
-        } else {
-          setSelectedSlot(data.slots[0].time);
-        }
+      // Automatically find nearest available walk-in slot for today from current time onward
+      const walkInData = await appointmentService.getNextWalkInSlot(todayStr);
+      setRecommendedSlotInfo(walkInData);
+
+      if (walkInData && !walkInData.allRemainingSlotsFull && walkInData.time) {
+        setSelectedSlot(prev => prev || walkInData.time);
+      } else if (!selectedSlot) {
+        setSelectedSlot('');
       }
+
+      // Also fetch full slot capacity for manual selection option
+      const fullData = await appointmentService.getAvailableSlots(todayStr);
+      setSlotData(fullData);
     } catch (error) {
       console.error('Failed to load slot capacity', error);
       toast.error('Could not fetch real-time garage slot capacity');
@@ -124,18 +187,33 @@ const WalkInService = () => {
     }
   };
 
+  const handleViewNextAvailableDate = async () => {
+    try {
+      setLoadingNextDate(true);
+      const data = await appointmentService.getNextAvailableSlot();
+      setNextAvailableDateInfo(data);
+    } catch (err) {
+      toast.error('No upcoming available slots found within 30 days');
+    } finally {
+      setLoadingNextDate(false);
+    }
+  };
+
   const loadMechanics = async () => {
     try {
       setLoadingMechanics(true);
       const list = await employeeService.getActiveMechanics();
       setActiveMechanics(Array.isArray(list) ? list : []);
-      // If any mechanic available with 0 jobs, pre-select
-      const freeMechanic = (list || []).find(m => m.activeJobsCount === 0);
-      if (freeMechanic) {
-        setSelectedMechanic(freeMechanic._id);
-      } else if (list && list.length > 0) {
-        setSelectedMechanic(list[0]._id);
-      }
+      // If mechanic is already selected and still active, preserve it
+      setSelectedMechanic(prev => {
+        if (prev && (list || []).some(m => m._id === prev)) {
+          return prev;
+        }
+        const freeMechanic = (list || []).find(m => m.activeJobsCount === 0);
+        if (freeMechanic) return freeMechanic._id;
+        if (list && list.length > 0) return list[0]._id;
+        return '';
+      });
     } catch (error) {
       console.error('Failed to load active mechanics', error);
       toast.error('Could not load checked-in mechanics');
@@ -158,11 +236,49 @@ const WalkInService = () => {
       setSearchAttempted(true);
       setVehicleNotFound(false);
       const data = await vehicleService.lookupVehicleByReg(cleanReg);
-      setVehicleData(data);
-      if (data?.currentOdometerReading) {
-        setInspection(prev => ({ ...prev, odometerReading: data.currentOdometerReading }));
+      
+      const rawVehicle = data.vehicle || data;
+      const rawCustomer = data.customer || rawVehicle.customer || {};
+      const rawServiceInfo = data.serviceInfo || {};
+
+      const vehicleId = rawVehicle._id;
+      const customerId = rawCustomer._id || (typeof rawVehicle.customer === 'string' ? rawVehicle.customer : rawVehicle.customer?._id);
+
+      const normalizedVehicleData = {
+        ...rawVehicle,
+        vehicle: rawVehicle,
+        _id: vehicleId,
+        vehicleId: vehicleId,
+        customer: rawCustomer,
+        customerId: customerId,
+        vehicleNumber: rawVehicle.vehicleNumber || cleanReg,
+        brand: rawVehicle.brand || '',
+        model: rawVehicle.model || '',
+        year: rawVehicle.manufacturingYear || rawVehicle.year || '',
+        manufacturingYear: rawVehicle.manufacturingYear || rawVehicle.year || '',
+        fuelType: rawVehicle.fuelType || '',
+        color: rawVehicle.color || 'Standard',
+        currentOdometerReading: rawVehicle.currentOdometerReading ?? 0,
+        serviceInfo: rawServiceInfo,
+        lastServiceDate: rawServiceInfo.lastServiceDate || null,
+        lastJobCard: rawServiceInfo.lastJobCardNumber ? {
+          jobNumber: rawServiceInfo.lastJobCardNumber,
+          status: rawServiceInfo.lastJobCardStatus,
+          _id: rawServiceInfo.lastJobCardId
+        } : null,
+        completedServicesCount: rawServiceInfo.completedServicesCount || 0,
+        freeServicesEntitled: rawServiceInfo.freeServicesEntitled ?? (rawVehicle.freeServicesEntitled ?? 3),
+        freeServicesUsed: rawServiceInfo.freeServicesUsed ?? (rawVehicle.freeServicesUsed ?? 0),
+        freeServiceEligible: !!rawServiceInfo.freeServiceEligible,
+        freeServiceNumber: rawServiceInfo.freeServiceNumber || null
+      };
+
+      setVehicleData(normalizedVehicleData);
+
+      if (rawVehicle?.currentOdometerReading) {
+        setInspection(prev => ({ ...prev, odometerReading: rawVehicle.currentOdometerReading }));
       }
-      toast.success(`Vehicle ${data.vehicleNumber} found in registry`);
+      toast.success(`Vehicle ${normalizedVehicleData.vehicleNumber} found in registry`);
     } catch (error) {
       setVehicleData(null);
       if (error.response?.status === 404) {
@@ -173,6 +289,34 @@ const WalkInService = () => {
     } finally {
       setSearching(false);
     }
+  };
+
+  // Reset walk-in flow completely
+  const handleResetWalkIn = () => {
+    sessionStorage.removeItem('walkin_service_draft');
+    setRegNumber('');
+    setVehicleData(null);
+    setSearchAttempted(false);
+    setVehicleNotFound(false);
+    setSelectedServices([PREDEFINED_SERVICES[2]]);
+    setSelectedComplaints(['General Inspection & Checkup']);
+    setComplaintRemarks('');
+    setInspection({
+      engineOil: 'Good',
+      brakes: 'Good',
+      tyres: 'Good',
+      battery: 'Healthy',
+      lights: 'All Working',
+      exteriorCondition: 'Clean / Minor Scratches',
+      fuelLevel: '50%',
+      odometerReading: '',
+      remarks: ''
+    });
+    setSelectedSlot('');
+    setSelectedMechanic('');
+    setPriority('Medium');
+    setAdvisorNotes('');
+    setCurrentStep(1);
   };
 
   // Service toggle
@@ -210,18 +354,27 @@ const WalkInService = () => {
 
   // Add to Waitlist if garage full
   const handleJoinWaitlist = async () => {
-    if (!vehicleData) return;
+    const resolvedVehicleId = vehicleData?._id || vehicleData?.vehicleId || vehicleData?.vehicle?._id;
+    const resolvedCustomerId = vehicleData?.customerId || vehicleData?.customer?._id || (typeof vehicleData?.customer === 'string' ? vehicleData.customer : null);
+
+    if (!resolvedVehicleId || !resolvedCustomerId) {
+      toast.error('Please select a customer and vehicle before joining the waiting queue.');
+      setCurrentStep(1);
+      return;
+    }
+
     try {
       setJoiningWaitlist(true);
       const serviceNames = selectedServices.map(s => s.name).join(', ');
       await waitlistService.addToWaitlist({
-        vehicleId: vehicleData._id,
-        customerId: vehicleData.customer?._id,
+        vehicleId: resolvedVehicleId,
+        customerId: resolvedCustomerId,
         customerName: vehicleData.customer?.fullName,
         phone: vehicleData.customer?.mobileNumber,
         serviceType: serviceNames,
         notes: `Walk-in customer added to queue. Complaints: ${selectedComplaints.join(', ')}`
       });
+      sessionStorage.removeItem('walkin_service_draft');
       toast.success('Customer successfully added to Waiting Queue');
       navigate('/waiting-queue');
     } catch (error) {
@@ -233,10 +386,19 @@ const WalkInService = () => {
 
   // Create Walk-in Job Card
   const handleCreateJobCard = async () => {
-    if (!vehicleData) {
-      toast.error('Vehicle data missing');
+    // Prevent accidental duplicate clicks
+    if (creatingJobCard) return;
+
+    // Resolve vehicle and customer IDs
+    const resolvedVehicleId = vehicleData?._id || vehicleData?.vehicleId || vehicleData?.vehicle?._id;
+    const resolvedCustomerId = vehicleData?.customerId || vehicleData?.customer?._id || (typeof vehicleData?.customer === 'string' ? vehicleData.customer : null) || vehicleData?.vehicle?.customer?._id;
+
+    if (!resolvedVehicleId || !resolvedCustomerId) {
+      toast.error('Please select a customer and vehicle before creating the Job Card.');
+      setCurrentStep(1);
       return;
     }
+
     if (selectedServices.length === 0) {
       toast.error('Please select at least one service');
       return;
@@ -258,8 +420,8 @@ const WalkInService = () => {
       ].filter(Boolean).join(' | ');
 
       const payload = {
-        vehicleId: vehicleData._id,
-        customerId: vehicleData.customer?._id,
+        vehicleId: resolvedVehicleId,
+        customerId: resolvedCustomerId,
         services: formattedServices,
         complaint: combinedComplaint || 'Walk-in Service Request',
         preferredTime: selectedSlot,
@@ -272,11 +434,27 @@ const WalkInService = () => {
         notes: advisorNotes
       };
 
+      console.log('Dispatching Walk-in Job Card payload:', {
+        customerId: payload.customerId,
+        vehicleId: payload.vehicleId,
+        assignedMechanic: payload.assignedMechanic,
+        servicesCount: payload.services.length
+      });
+
       const response = await jobCardService.createWalkInJobCard(payload);
+      sessionStorage.removeItem('walkin_service_draft');
       toast.success(`Job Card ${response.jobNumber} created successfully!`);
       navigate(`/job-cards/${response._id}`);
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to generate walk-in job card');
+      if (error.response?.status === 409 && error.response?.data?.nextSlot) {
+        toast.warning(error.response.data.message);
+        setSelectedSlot(error.response.data.nextSlot.time);
+        setRecommendedSlotInfo(error.response.data.nextSlot);
+        setCurrentStep(4);
+        loadCapacity();
+      } else {
+        toast.error(error.response?.data?.message || 'Failed to generate walk-in job card');
+      }
     } finally {
       setCreatingJobCard(false);
     }
@@ -418,9 +596,19 @@ const WalkInService = () => {
                     <FaCheckCircle className="text-success" size={20} />
                     <span className="fw-bold text-navy">Vehicle Profile Verified in Garage Database</span>
                   </div>
-                  <Badge bg="success" className="px-3 py-2 fs-6">
-                    {vehicleData.vehicleNumber}
-                  </Badge>
+                  <div className="d-flex align-items-center gap-2">
+                    <Button 
+                      variant="outline-secondary" 
+                      size="sm" 
+                      onClick={handleResetWalkIn}
+                      className="bg-white"
+                    >
+                      Change Vehicle
+                    </Button>
+                    <Badge bg="success" className="px-3 py-2 fs-6">
+                      {vehicleData.vehicleNumber}
+                    </Badge>
+                  </div>
                 </div>
 
                 <Row className="g-4 mb-4">
@@ -931,14 +1119,26 @@ const WalkInService = () => {
       {/* STEP 4: CAPACITY & TIME SLOT */}
       {currentStep === 4 && (
         <Card className="border-0 shadow-sm bg-card mb-4">
-          <Card.Header className="bg-transparent border-bottom pt-4 pb-3 px-4 d-flex justify-content-between align-items-center">
+          <Card.Header className="bg-transparent border-bottom pt-4 pb-3 px-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div className="d-flex align-items-center gap-2">
               <FaClock className="text-orange" size={20} />
               <h5 className="fw-bold mb-0 text-navy">Step 4: Today's Workshop Capacity & Slot Verification</h5>
             </div>
-            <Badge bg="light" text="dark" className="border px-3 py-2 fs-6">
-              Date: {todayStr}
-            </Badge>
+            <div className="d-flex align-items-center gap-2">
+              <Button 
+                variant="outline-primary" 
+                size="sm"
+                className="d-flex align-items-center gap-2"
+                onClick={loadCapacity}
+                disabled={loadingCapacity}
+              >
+                <FaSync className={loadingCapacity ? 'fa-spin' : ''} />
+                <span>Refresh Capacity</span>
+              </Button>
+              <Badge bg="light" text="dark" className="border px-3 py-2 fs-6">
+                Date: {todayStr}
+              </Badge>
+            </div>
           </Card.Header>
           <Card.Body className="p-4">
             {loadingCapacity ? (
@@ -949,9 +1149,11 @@ const WalkInService = () => {
             ) : (
               <>
                 {(() => {
+                  const checkedInMechanics = slotData?.checkedInMechanics ?? recommendedSlotInfo?.checkedInMechanics ?? (slotData?.capacityPerSlot || 0);
                   const totalBooked = slotData?.totalBooked ?? (slotData?.slots?.reduce((sum, s) => sum + (s.booked || 0), 0) || 0);
                   const totalAvailable = slotData?.totalAvailable ?? (slotData?.slots?.reduce((sum, s) => sum + (s.available || 0), 0) || 0);
-                  const isNoCapacity = (slotData?.capacityPerSlot === 0 || totalAvailable === 0);
+                  const isNoCapacity = (checkedInMechanics === 0 || totalAvailable === 0);
+                  const hasAvailableSlot = recommendedSlotInfo && !recommendedSlotInfo.allRemainingSlotsFull && selectedSlot && checkedInMechanics > 0;
 
                   return (
                     <>
@@ -960,7 +1162,7 @@ const WalkInService = () => {
                         <Col xs={12} sm={4}>
                           <div className="p-3 border rounded bg-light text-center">
                             <div className="text-muted small">Active Checked-in Mechanics</div>
-                            <div className="fs-3 fw-bold text-navy">{slotData?.capacityPerSlot || 0}</div>
+                            <div className="fs-3 fw-bold text-navy">{checkedInMechanics}</div>
                             <div className="small text-success">On garage floor today</div>
                           </div>
                         </Col>
@@ -982,75 +1184,218 @@ const WalkInService = () => {
                         </Col>
                       </Row>
 
-                      {/* NO CAPACITY WARNING BANNER */}
-                      {isNoCapacity ? (
-                        <Alert variant="danger" className="border-0 shadow-sm p-4 rounded-3 mb-4">
-                          <div className="d-flex align-items-start gap-3">
-                            <FaExclamationTriangle className="text-danger mt-1" size={32} />
+                      {/* CASE C: SLOT AVAILABLE */}
+                      {hasAvailableSlot ? (
+                        <div className="card border-primary border-2 bg-primary bg-opacity-10 p-4 mb-4 rounded-3 shadow-sm">
+                          <div className="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
                             <div>
-                              <h5 className="fw-bold text-navy mb-1">Workshop Running at Maximum Capacity</h5>
+                              <Badge bg="primary" className="px-3 py-2 text-uppercase mb-2">
+                                Recommended Walk-in Slot
+                              </Badge>
+                              <h4 className="fw-bold text-navy mb-1">Today &bull; {selectedSlot}</h4>
+                              <div className="text-muted small">
+                                {recommendedSlotInfo.isCurrentSlot 
+                                  ? 'Current active slot (immediately valid for check-in)' 
+                                  : 'Nearest available slot from current time onward'}
+                              </div>
+                            </div>
+                            <div className="text-sm-end">
+                              <Badge bg="success" className="px-3 py-2 fs-6 mb-1 d-inline-block">
+                                <FaCheckCircle className="me-1" /> Slot Assigned Successfully
+                              </Badge>
+                              <div className="small text-success fw-bold">
+                                {recommendedSlotInfo.available} mechanic available
+                              </div>
+                            </div>
+                          </div>
+
+                          <Row className="g-3 bg-white p-3 rounded-2 border align-items-center mb-3">
+                            <Col xs={12} sm={4}>
+                              <span className="text-muted small d-block">Vehicle</span>
+                              <span className="fw-bold text-dark font-monospace">{vehicleData?.vehicleNumber}</span>
+                            </Col>
+                            <Col xs={12} sm={4}>
+                              <span className="text-muted small d-block">Intake Service</span>
+                              <span className="fw-bold text-dark">{selectedServices[0]?.name || 'General Service'}</span>
+                            </Col>
+                            <Col xs={12} sm={4}>
+                              <span className="text-muted small d-block">Real Capacity</span>
+                              <span className="fw-bold text-navy">
+                                {recommendedSlotInfo.booked} / {recommendedSlotInfo.capacity} bays occupied
+                              </span>
+                            </Col>
+                          </Row>
+
+                          <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 pt-1">
+                            <Button 
+                              variant="outline-secondary" 
+                              size="sm"
+                              onClick={() => setShowAllSlots(!showAllSlots)}
+                            >
+                              {showAllSlots ? 'Hide Alternative Slots' : 'Choose Another Available Slot'}
+                            </Button>
+                            <span className="small text-success fw-medium">
+                              ✓ Automatically selected based on live mechanic availability
+                            </span>
+                          </div>
+
+                          {showAllSlots && (
+                            <div className="mt-4 pt-3 border-top">
+                              <h6 className="fw-bold text-navy mb-3">Other Valid Slots for Today:</h6>
+                              <Row className="g-3">
+                                {slotData?.slots?.map((slot, idx) => {
+                                  const isSelected = selectedSlot === slot.time;
+                                  const isFull = slot.available === 0;
+                                  return (
+                                    <Col xs={12} sm={6} md={4} key={idx}>
+                                      <Card 
+                                        className={`border ${
+                                          isFull 
+                                            ? 'bg-light opacity-75 border-secondary' 
+                                            : isSelected 
+                                              ? 'border-2 border-primary bg-primary bg-opacity-10 shadow-sm' 
+                                              : 'hover-shadow cursor-pointer bg-white'
+                                        }`}
+                                        style={{ cursor: isFull ? 'not-allowed' : 'pointer' }}
+                                        onClick={() => {
+                                          if (!isFull) setSelectedSlot(slot.time);
+                                        }}
+                                      >
+                                        <Card.Body className="p-3">
+                                          <div className="d-flex justify-content-between align-items-center mb-1">
+                                            <span className="fw-bold text-navy small">{slot.time}</span>
+                                            {isFull ? (
+                                              <Badge bg="danger">FULL</Badge>
+                                            ) : (
+                                              <Badge bg="success">{slot.available} Available</Badge>
+                                            )}
+                                          </div>
+                                          <div className="small text-muted">
+                                            Booked: {slot.booked} / {slot.capacity}
+                                          </div>
+                                        </Card.Body>
+                                      </Card>
+                                    </Col>
+                                  );
+                                })}
+                              </Row>
+                            </div>
+                          )}
+                        </div>
+                      ) : checkedInMechanics === 0 ? (
+                        /* CASE A: ZERO MECHANICS CHECKED IN */
+                        <Alert variant="warning" className="border-0 shadow-sm p-4 rounded-3 mb-4">
+                          <div className="d-flex align-items-start gap-3">
+                            <FaExclamationTriangle className="text-warning mt-1" size={32} />
+                            <div className="w-100">
+                              <h5 className="fw-bold text-navy mb-1">No Mechanics Available Today</h5>
                               <p className="text-dark small mb-3">
-                                All active mechanic bays are fully occupied or no mechanics are currently checked in for immediate walk-in service. 
-                                You can place the customer on the <strong>Waiting Queue</strong> so they are notified the moment a bay opens.
+                                No mechanics are currently checked in today. A service slot cannot be assigned until mechanic availability is confirmed.
                               </p>
-                              <div className="d-flex gap-2 flex-wrap">
+                              <div className="d-flex gap-2 flex-wrap mb-3">
                                 <Button 
                                   variant="warning" 
-                                  className="btn btn-orange text-white d-flex align-items-center gap-2"
+                                  className="btn btn-orange text-white d-flex align-items-center gap-2 px-3 py-2"
                                   onClick={handleJoinWaitlist}
                                   disabled={joiningWaitlist}
                                 >
                                   {joiningWaitlist ? <Spinner size="sm" /> : <FaWalking />}
-                                  <span>Add Customer to Waiting Queue</span>
+                                  <span>Add to Waiting Queue</span>
                                 </Button>
-                                <Link to="/appointments/book" className="btn btn-outline-secondary">
-                                  Book for Upcoming Date Instead
-                                </Link>
+                                <Button 
+                                  variant="outline-primary"
+                                  className="d-flex align-items-center gap-2 px-3 py-2"
+                                  onClick={handleViewNextAvailableDate}
+                                  disabled={loadingNextDate}
+                                >
+                                  {loadingNextDate ? <Spinner size="sm" /> : <FaCalendarCheck />}
+                                  <span>View Next Available Date</span>
+                                </Button>
+                                <Button 
+                                  variant="outline-secondary"
+                                  className="d-flex align-items-center gap-2 px-3 py-2"
+                                  onClick={loadCapacity}
+                                  disabled={loadingCapacity}
+                                >
+                                  <FaSync className={loadingCapacity ? 'fa-spin' : ''} />
+                                  <span>Refresh Capacity</span>
+                                </Button>
                               </div>
+
+                              {nextAvailableDateInfo && (
+                                <div className="p-3 bg-white border rounded mt-2">
+                                  <div className="d-flex justify-content-between align-items-center mb-2">
+                                    <span className="fw-bold text-navy">Upcoming Slot Found:</span>
+                                    <Badge bg="success">{nextAvailableDateInfo.capacity} slots available</Badge>
+                                  </div>
+                                  <div className="small text-dark mb-2">
+                                    Date: <strong>{nextAvailableDateInfo.date}</strong> &bull; Time: <strong>{nextAvailableDateInfo.time}</strong>
+                                  </div>
+                                  <Link to={`/appointments/book?date=${nextAvailableDateInfo.date}`} className="btn btn-sm btn-primary">
+                                    Book for {nextAvailableDateInfo.date} &rarr;
+                                  </Link>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </Alert>
                       ) : (
-                        <>
-                          <h6 className="fw-bold text-navy mb-3">Select Intake Time Slot for Today:</h6>
-                          <Row className="g-3 mb-4">
-                            {slotData?.slots?.map((slot, idx) => {
-                              const isSelected = selectedSlot === slot.time;
-                              const isFull = slot.available === 0;
-                              return (
-                                <Col xs={12} sm={6} md={4} key={idx}>
-                                  <Card 
-                                    className={`border ${
-                                      isFull 
-                                        ? 'bg-light opacity-75 border-secondary' 
-                                        : isSelected 
-                                          ? 'border-2 border-primary bg-primary bg-opacity-10 shadow-sm' 
-                                          : 'hover-shadow cursor-pointer'
-                                    }`}
-                                    style={{ cursor: isFull ? 'not-allowed' : 'pointer' }}
-                                    onClick={() => {
-                                      if (!isFull) setSelectedSlot(slot.time);
-                                    }}
-                                  >
-                                    <Card.Body className="p-3">
-                                      <div className="d-flex justify-content-between align-items-center mb-1">
-                                        <span className="fw-bold text-navy small">{slot.time}</span>
-                                        {isFull ? (
-                                          <Badge bg="danger">FULL</Badge>
-                                        ) : (
-                                          <Badge bg="success">{slot.available} Available</Badge>
-                                        )}
-                                      </div>
-                                      <div className="small text-muted">
-                                        Booked: {slot.booked} / {slot.capacity}
-                                      </div>
-                                    </Card.Body>
-                                  </Card>
-                                </Col>
-                              );
-                            })}
-                          </Row>
-                        </>
+                        /* CASE B: MECHANICS AVAILABLE BUT ALL REMAINING SLOTS FULL */
+                        <Alert variant="danger" className="border-0 shadow-sm p-4 rounded-3 mb-4">
+                          <div className="d-flex align-items-start gap-3">
+                            <FaExclamationTriangle className="text-danger mt-1" size={32} />
+                            <div className="w-100">
+                              <h5 className="fw-bold text-navy mb-1">No Service Slot Available Today</h5>
+                              <p className="text-dark small mb-3">
+                                All remaining service slots are currently full or mechanics are occupied with active job cards.
+                              </p>
+                              <div className="d-flex gap-2 flex-wrap mb-3">
+                                <Button 
+                                  variant="warning" 
+                                  className="btn btn-orange text-white d-flex align-items-center gap-2 px-3 py-2"
+                                  onClick={handleJoinWaitlist}
+                                  disabled={joiningWaitlist}
+                                >
+                                  {joiningWaitlist ? <Spinner size="sm" /> : <FaWalking />}
+                                  <span>Add to Waiting Queue</span>
+                                </Button>
+                                <Button 
+                                  variant="outline-primary"
+                                  className="d-flex align-items-center gap-2 px-3 py-2"
+                                  onClick={handleViewNextAvailableDate}
+                                  disabled={loadingNextDate}
+                                >
+                                  {loadingNextDate ? <Spinner size="sm" /> : <FaCalendarCheck />}
+                                  <span>View Next Available Date</span>
+                                </Button>
+                                <Button 
+                                  variant="outline-secondary"
+                                  className="d-flex align-items-center gap-2 px-3 py-2"
+                                  onClick={loadCapacity}
+                                  disabled={loadingCapacity}
+                                >
+                                  <FaSync className={loadingCapacity ? 'fa-spin' : ''} />
+                                  <span>Refresh Capacity</span>
+                                </Button>
+                              </div>
+
+                              {nextAvailableDateInfo && (
+                                <div className="p-3 bg-white border rounded mt-2">
+                                  <div className="d-flex justify-content-between align-items-center mb-2">
+                                    <span className="fw-bold text-navy">Upcoming Slot Found:</span>
+                                    <Badge bg="success">{nextAvailableDateInfo.capacity} slots available</Badge>
+                                  </div>
+                                  <div className="small text-dark mb-2">
+                                    Date: <strong>{nextAvailableDateInfo.date}</strong> &bull; Time: <strong>{nextAvailableDateInfo.time}</strong>
+                                  </div>
+                                  <Link to={`/appointments/book?date=${nextAvailableDateInfo.date}`} className="btn btn-sm btn-primary">
+                                    Book for {nextAvailableDateInfo.date} &rarr;
+                                  </Link>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </Alert>
                       )}
 
                       <div className="d-flex justify-content-between mt-4">
@@ -1065,9 +1410,9 @@ const WalkInService = () => {
                           variant="primary" 
                           className="btn-primary-custom px-4 py-2 d-flex align-items-center gap-2"
                           onClick={() => setCurrentStep(5)}
-                          disabled={isNoCapacity}
+                          disabled={!hasAvailableSlot || isNoCapacity || checkedInMechanics === 0}
                         >
-                          <span>Proceed to Assignment</span>
+                          <span>Confirm Walk-in Check-In</span>
                           <FaArrowRight />
                         </Button>
                       </div>
@@ -1231,6 +1576,25 @@ const WalkInService = () => {
                       </div>
                     </div>
 
+                    {/* Step 5 Confirmation Card: Customer, Vehicle, Vehicle Model */}
+                    <Card className="mb-3 border-primary-subtle bg-white shadow-sm border">
+                      <Card.Body className="p-3">
+                        <div className="small fw-bold text-navy text-uppercase mb-2 d-flex align-items-center gap-2 border-bottom pb-1">
+                          <FaCheckCircle className="text-success" />
+                          <span>Walk-in Identification Confirmation</span>
+                        </div>
+                        <div className="small text-dark mb-1">
+                          <strong>Customer:</strong> {vehicleData?.customer?.fullName || 'N/A'}
+                        </div>
+                        <div className="small text-dark mb-1">
+                          <strong>Vehicle:</strong> <span className="font-monospace fw-bold text-primary">{vehicleData?.vehicleNumber || 'N/A'}</span>
+                        </div>
+                        <div className="small text-dark">
+                          <strong>Vehicle Model:</strong> {vehicleData?.brand} {vehicleData?.model}
+                        </div>
+                      </Card.Body>
+                    </Card>
+
                     <Button
                       variant="primary"
                       className="btn-primary-custom w-100 py-3 fw-bold d-flex align-items-center justify-content-center gap-2 shadow-sm"
@@ -1238,7 +1602,7 @@ const WalkInService = () => {
                       disabled={creatingJobCard}
                     >
                       {creatingJobCard ? <Spinner size="sm" /> : <FaPrint />}
-                      <span>Generate Walk-in Job Card</span>
+                      <span>{creatingJobCard ? 'Creating Job Card...' : 'Generate Walk-in Job Card'}</span>
                     </Button>
                   </Card.Body>
                 </Card>

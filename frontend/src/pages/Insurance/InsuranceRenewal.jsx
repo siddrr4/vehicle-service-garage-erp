@@ -52,7 +52,7 @@ const InsuranceRenewal = () => {
   const [startDate, setStartDate] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
   const [durationYears, setDurationYears] = useState('1');
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState('1850');
 
   // Processing & Payment State
   const [processingPayment, setProcessingPayment] = useState(false);
@@ -106,8 +106,8 @@ const InsuranceRenewal = () => {
         eDateObj.setFullYear(eDateObj.getFullYear() + 1);
         setExpiryDate(eDateObj.toISOString().split('T')[0]);
 
-        // Start renewal amount empty - user enters actual quoted amount
-        setAmount('');
+        // Default academic/demo quotation amount (editable between ₹1,001 and ₹1,999)
+        setAmount('1850');
       } else {
         setError(res?.message || 'Failed to fetch vehicle insurance details');
       }
@@ -179,7 +179,12 @@ const InsuranceRenewal = () => {
 
     const numAmount = parseFloat(amount);
     if (isNaN(numAmount) || numAmount <= 0) {
-      toast.error('Please enter a valid renewal premium amount.');
+      toast.error('Renewal premium amount cannot be ₹0 or negative.');
+      return false;
+    }
+
+    if (numAmount < 1001 || numAmount > 1999) {
+      toast.error('Renewal premium quotation must be between ₹1,001 and ₹1,999 for demo policy renewals.');
       return false;
     }
 
@@ -706,18 +711,19 @@ const InsuranceRenewal = () => {
                         <span className="input-group-text bg-light fw-bold text-secondary">₹</span>
                         <Form.Control
                           type="number"
-                          placeholder="Enter amount"
+                          placeholder="Enter amount (₹1,001 - ₹1,999)"
                           value={amount}
                           onChange={(e) => setAmount(e.target.value)}
                           disabled={processingPayment}
-                          min="1"
+                          min="1001"
+                          max="1999"
                           step="any"
                           className="fw-bold fs-5 text-dark"
                           required
                         />
                       </div>
                       <Form.Text className="text-muted">
-                        Enter quoted renewal amount from insurer. Must be greater than ₹0.
+                        Demo quotation range: ₹1,001 – ₹1,999 (Default: ₹1,850). Service Advisor can customize quotation.
                       </Form.Text>
                     </Form.Group>
                   </Col>
@@ -736,6 +742,14 @@ const InsuranceRenewal = () => {
                     </span>
                   </div>
                   <div className="d-flex justify-content-between align-items-center mb-2">
+                    <span className="text-secondary small">Renewal Premium Amount</span>
+                    <span className="fw-semibold text-dark small">
+                      {amount && !isNaN(parseFloat(amount)) && parseFloat(amount) > 0
+                        ? `₹${parseFloat(amount).toLocaleString('en-IN')}`
+                        : '₹0'}
+                    </span>
+                  </div>
+                  <div className="d-flex justify-content-between align-items-center mb-2">
                     <span className="text-secondary small">Gateway Integration</span>
                     <span className="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1">
                       Razorpay Test Mode (Instant Verification)
@@ -750,8 +764,8 @@ const InsuranceRenewal = () => {
                     <div className="text-end">
                       <span className="fs-3 fw-bold text-orange">
                         {amount && !isNaN(parseFloat(amount)) && parseFloat(amount) > 0
-                          ? `₹${parseFloat(amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
-                          : '₹0.00'}
+                          ? `₹${parseFloat(amount).toLocaleString('en-IN')}`
+                          : '₹0'}
                       </span>
                     </div>
                   </div>
@@ -771,7 +785,7 @@ const InsuranceRenewal = () => {
                   <Button
                     variant="orange"
                     onClick={handlePayNow}
-                    disabled={processingPayment || !amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0}
+                    disabled={processingPayment}
                     className="w-100 w-sm-auto px-5 py-2.5 fw-bold shadow-sm d-flex align-items-center justify-content-center gap-2 text-white border-0"
                   >
                     {processingPayment ? (
@@ -783,7 +797,9 @@ const InsuranceRenewal = () => {
                       <>
                         <FaLock size={14} />
                         <span>
-                          Pay Now {amount && !isNaN(parseFloat(amount)) && parseFloat(amount) > 0 ? `(₹${parseFloat(amount).toLocaleString('en-IN')})` : ''}
+                          Pay {amount && !isNaN(parseFloat(amount)) && parseFloat(amount) > 0
+                            ? `₹${parseFloat(amount).toLocaleString('en-IN')}`
+                            : 'Now'}
                         </span>
                       </>
                     )}

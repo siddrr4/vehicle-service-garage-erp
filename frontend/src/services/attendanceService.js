@@ -12,8 +12,8 @@ const checkOut = async (employeeId = null) => {
   return response.data;
 };
 
-const getTodayAttendance = async () => {
-  const response = await api.get('/attendance/today');
+const getTodayAttendance = async (params = {}) => {
+  const response = await api.get('/attendance/today', { params });
   return response.data;
 };
 

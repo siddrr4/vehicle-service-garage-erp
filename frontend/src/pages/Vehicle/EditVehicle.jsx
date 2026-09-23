@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { getVehicleById, updateVehicle } from '../../services/vehicleService';
 import { toast } from 'react-toastify';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
-import { FaCar, FaFileAlt, FaUser } from 'react-icons/fa';
+import { FaCar, FaFileAlt, FaUser, FaInfoCircle } from 'react-icons/fa';
 
 const FUEL_TYPES = ['Petrol', 'Diesel', 'CNG', 'Electric', 'Hybrid'];
 const TRANSMISSION_TYPES = ['Manual', 'Automatic'];
@@ -42,6 +42,7 @@ const EditVehicle = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
+  const [serverError, setServerError] = useState('');
 
   useEffect(() => {
     const fetchVehicle = async () => {
@@ -76,7 +77,14 @@ const EditVehicle = () => {
   const onChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: '' }));
+    if (serverError) setServerError('');
+    if (errors[name]) {
+      setErrors((prev) => {
+        const updated = { ...prev };
+        delete updated[name];
+        return updated;
+      });
+    }
   };
 
   const validate = () => {
@@ -105,11 +113,18 @@ const EditVehicle = () => {
 
     try {
       setSaving(true);
+      setServerError('');
       await updateVehicle(id, formData);
       toast.success('Vehicle updated successfully!');
       navigate(`/vehicles/${id}`);
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Error updating vehicle');
+      const message = error.response?.data?.message || 'Error updating vehicle';
+      const field = error.response?.data?.field;
+      toast.error(message);
+      setServerError(message);
+      if (field) {
+        setErrors((prev) => ({ ...prev, [field]: message }));
+      }
     } finally {
       setSaving(false);
     }
@@ -156,6 +171,18 @@ const EditVehicle = () => {
       </div>
 
       <form id="edit-vehicle-form" onSubmit={onSubmit} noValidate>
+        {serverError && (
+          <div className="alert alert-danger alert-dismissible fade show d-flex align-items-center mb-4 shadow-sm" role="alert">
+            <FaInfoCircle className="me-2 flex-shrink-0" size={18} />
+            <div className="flex-grow-1">{serverError}</div>
+            <button
+              type="button"
+              className="btn-close"
+              aria-label="Close"
+              onClick={() => setServerError('')}
+            ></button>
+          </div>
+        )}
         {/* ── Owner Info Banner (read-only) ── */}
         {vehicleOwner && (
           <div className="bg-card p-4 mb-4 d-flex align-items-center gap-3">
@@ -350,11 +377,14 @@ const EditVehicle = () => {
               <input
                 id="engineNumber"
                 type="text"
-                className="form-control text-uppercase"
+                className={`form-control text-uppercase ${errors.engineNumber ? 'is-invalid' : ''}`}
                 name="engineNumber"
                 value={formData.engineNumber}
                 onChange={onChange}
               />
+              {errors.engineNumber && (
+                <div className="invalid-feedback">{errors.engineNumber}</div>
+              )}
             </div>
 
             <div className="col-md-4">
@@ -364,12 +394,15 @@ const EditVehicle = () => {
               <input
                 id="chassisNumber"
                 type="text"
-                className="form-control text-uppercase"
+                className={`form-control text-uppercase ${errors.chassisNumber ? 'is-invalid' : ''}`}
                 name="chassisNumber"
                 value={formData.chassisNumber}
                 onChange={onChange}
                 maxLength="17"
               />
+              {errors.chassisNumber && (
+                <div className="invalid-feedback">{errors.chassisNumber}</div>
+              )}
             </div>
 
             <div className="col-md-4">
@@ -379,12 +412,15 @@ const EditVehicle = () => {
               <input
                 id="insuranceNumber"
                 type="text"
-                className="form-control"
+                className={`form-control text-uppercase ${errors.insuranceNumber ? 'is-invalid' : ''}`}
                 name="insuranceNumber"
                 value={formData.insuranceNumber}
                 onChange={onChange}
-                maxLength="20"
+                maxLength="50"
               />
+              {errors.insuranceNumber && (
+                <div className="invalid-feedback">{errors.insuranceNumber}</div>
+              )}
             </div>
 
             <div className="col-md-4">

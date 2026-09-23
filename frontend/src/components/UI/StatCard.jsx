@@ -28,7 +28,7 @@ const StatCard = ({
             </h3>
           </div>
           <div className={`stat-icon-wrapper stat-icon-${color}`}>
-            {icon}
+            {React.isValidElement(icon) ? icon : (typeof icon === 'function' ? React.createElement(icon) : icon)}
           </div>
         </div>
 

@@ -159,7 +159,15 @@ const ServiceHistoryList = () => {
                          <span className="badge bg-success ms-1">Free #{record.freeServiceNumber}</span>
                       )}
                     </td>
-                    <td>{record.jobCard?.assignedMechanic?.firstName || 'Unassigned'}</td>
+                    <td>
+                      {record.jobCard?.assignedMechanic ? (
+                        <span className="fw-semibold text-dark">
+                          {record.jobCard.assignedMechanic.fullName || record.jobCard.assignedMechanic.firstName || 'Assigned'}
+                        </span>
+                      ) : (
+                        <span className="text-muted small fst-italic">Unassigned</span>
+                      )}
+                    </td>
                     <td className="fw-bold">
                       {record.invoice ? `₹${record.invoice.grandTotal.toFixed(2)}` : 'Pending'}
                     </td>

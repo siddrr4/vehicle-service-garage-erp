@@ -312,7 +312,7 @@ const VehicleDetails = () => {
                             {record.isFreeService && <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 ms-1">Free</span>}
                           </td>
                           <td>{record.odometerReading} km</td>
-                          <td>{record.jobCard?.assignedMechanic?.firstName || 'N/A'}</td>
+                          <td>{record.jobCard?.assignedMechanic?.fullName || record.jobCard?.assignedMechanic?.firstName || 'N/A'}</td>
                           <td>
                             {record.invoice ? (
                               <span className={`badge ${record.invoice.status === 'Paid' ? 'bg-success bg-opacity-10 text-success border border-success border-opacity-25' : 'bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25'}`}>

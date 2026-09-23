@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Table, Button, Form, InputGroup, Pagination, Card, Row, Col } from 'react-bootstrap';
-import { FaPlus, FaSearch, FaEye, FaEdit, FaTrash, FaWalking, FaCalendarAlt } from 'react-icons/fa';
+import { FaPlus, FaSearch, FaEye, FaEdit, FaTrash, FaWalking, FaCalendarAlt, FaWrench, FaUserPlus } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import appointmentService from '../../services/appointmentService';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
 import PageHeader from '../../components/UI/PageHeader';
 import StatusBadge from '../../components/UI/StatusBadge';
 import EmptyState from '../../components/UI/EmptyState';
+import AssignAppointmentMechanicModal from './AssignAppointmentMechanicModal';
 import { formatDateIST } from '../../utils/dateUtils';
 
 const AppointmentList = () => {
@@ -18,6 +19,13 @@ const AppointmentList = () => {
   const [total, setTotal] = useState(0);
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+
+  const handleOpenAssignModal = (apt) => {
+    setSelectedAppointment(apt);
+    setAssignModalOpen(true);
+  };
 
   const fetchAppointments = async () => {
     try {
@@ -172,9 +180,38 @@ const AppointmentList = () => {
                         </td>
                         <td>
                           {apt.assignedMechanic ? (
-                            <span className="fw-semibold text-navy">{apt.assignedMechanic.fullName}</span>
+                            <div>
+                              <div className="fw-semibold text-navy d-flex align-items-center gap-1">
+                                <FaWrench size={11} className="text-orange" /> {apt.assignedMechanic.fullName}
+                              </div>
+                              <div className="d-flex align-items-center gap-1">
+                                <small className="text-muted">
+                                  {apt.assignedMechanic.specialization || 'Mechanic'}
+                                </small>
+                                <Button
+                                  variant="link"
+                                  className="p-0 text-primary ms-1"
+                                  style={{ fontSize: '0.72rem', textDecoration: 'none' }}
+                                  onClick={() => handleOpenAssignModal(apt)}
+                                  title="Change Mechanic"
+                                >
+                                  <FaEdit size={10} />
+                                </Button>
+                              </div>
+                            </div>
                           ) : (
-                            <span className="text-muted small fst-italic">Unassigned</span>
+                            <div className="d-flex align-items-center gap-2">
+                              <span className="badge bg-secondary bg-opacity-10 text-secondary border">Unassigned</span>
+                              <Button
+                                variant="outline-primary"
+                                size="sm"
+                                className="py-0.5 px-2 d-inline-flex align-items-center gap-1"
+                                onClick={() => handleOpenAssignModal(apt)}
+                                style={{ fontSize: '0.75rem', lineHeight: '1.2' }}
+                              >
+                                <FaUserPlus size={10} /> Assign
+                              </Button>
+                            </div>
                           )}
                         </td>
                         <td>
@@ -182,6 +219,15 @@ const AppointmentList = () => {
                         </td>
                         <td className="text-end px-4">
                           <div className="d-flex justify-content-end gap-2">
+                            <Button
+                              variant="outline-info"
+                              size="sm"
+                              className="p-1"
+                              onClick={() => handleOpenAssignModal(apt)}
+                              title={apt.assignedMechanic ? "Reassign Mechanic" : "Assign Mechanic"}
+                            >
+                              <FaUserPlus size={13} />
+                            </Button>
                             <Link 
                               to={`/appointments/${apt._id}`} 
                               className="btn btn-sm btn-outline-secondary p-1"
@@ -234,6 +280,17 @@ const AppointmentList = () => {
           )}
         </Card.Body>
       </Card>
+
+      {/* Assign Mechanic Modal */}
+      <AssignAppointmentMechanicModal
+        show={assignModalOpen}
+        onHide={() => {
+          setAssignModalOpen(false);
+          setSelectedAppointment(null);
+        }}
+        appointment={selectedAppointment}
+        onSuccess={fetchAppointments}
+      />
     </div>
   );
 };

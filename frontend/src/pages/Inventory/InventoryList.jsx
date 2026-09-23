@@ -3,13 +3,14 @@ import { Row, Col, Card, Table, Badge, Button, Form, Modal, Spinner } from 'reac
 import { 
   FaSearch, FaFilter, FaPlus, FaEdit, FaTrash, 
   FaExclamationTriangle, FaWarehouse, FaTag, FaBoxes, 
-  FaDollarSign, FaList, FaTools, FaCheckCircle, FaClipboardList 
+  FaRupeeSign, FaList, FaTools, FaCheckCircle, FaClipboardList 
 } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import sparePartService from '../../services/sparePartService';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
 import PageHeader from '../../components/UI/PageHeader';
 import EmptyState from '../../components/UI/EmptyState';
+import { formatStockLastUpdated } from '../../utils/dateUtils';
 
 const categories = [
   'Engine Parts',
@@ -322,11 +323,11 @@ const InventoryList = () => {
               <div>
                 <span className="text-muted fw-bold mb-1 small text-uppercase" style={{ fontSize: '0.72rem', letterSpacing: '0.05em' }}>Inventory Value</span>
                 <h3 className="fw-bold mb-0 text-success mt-1">
-                  {statsLoading ? <Spinner animation="border" size="sm" /> : `₹${stats.totalInventoryValue.toLocaleString('en-IN')}`}
+                  {statsLoading ? <Spinner animation="border" size="sm" /> : `₹${Number(stats.totalInventoryValue || 0).toLocaleString('en-IN')}`}
                 </h3>
               </div>
               <div className="p-3 bg-success bg-opacity-10 text-success rounded-circle border border-success border-opacity-25">
-                <FaDollarSign size={20} />
+                <FaRupeeSign size={20} />
               </div>
             </div>
           </div>
@@ -515,11 +516,17 @@ const InventoryList = () => {
                       <div className="small text-muted mb-1">
                         Min. Alert Level: {part.minimumStockLevel}
                       </div>
-                      {getStatusBadge(part.status)}
+                      <div className="mb-1.5">
+                        {getStatusBadge(part.status)}
+                      </div>
+                      <div className="small text-muted mt-1" style={{ fontSize: '0.75rem' }}>
+                        <span className="fw-medium text-secondary">Last Updated:</span>{' '}
+                        {formatStockLastUpdated(part.stockLastUpdated || part.updatedAt)}
+                      </div>
                     </td>
                     <td>
-                      <div className="fw-bold text-dark">₹{part.sellingPrice.toLocaleString('en-IN')}</div>
-                      <small className="text-muted d-block">Cost: ₹{part.unitPrice} (+{part.gstPercent}% GST)</small>
+                      <div className="fw-bold text-dark">₹{Number(part.sellingPrice || 0).toLocaleString('en-IN')}</div>
+                      <small className="text-muted d-block">Cost: ₹{Number(part.unitPrice || 0).toLocaleString('en-IN')} (+{part.gstPercent}% GST)</small>
                     </td>
                     <td>
                       <div className="d-flex align-items-center gap-1.5 text-secondary">

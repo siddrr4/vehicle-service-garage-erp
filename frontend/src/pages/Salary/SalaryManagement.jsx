@@ -3,7 +3,7 @@ import { Button, Modal, Badge, Card, Row, Col, Table, Form } from 'react-bootstr
 import { 
   FaMoneyBillWave, FaSearch, FaFilter, FaEdit, FaTrash, 
   FaPlus, FaCheckCircle, FaTimesCircle, FaCalendarAlt, 
-  FaUserTie, FaCoins, FaCalculator 
+  FaUserTie, FaCoins, FaCalculator, FaHistory 
 } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import salaryService from '../../services/salaryService';
@@ -19,7 +19,13 @@ const SalaryManagement = () => {
   // Filters & Search
   const [keyword, setKeyword] = useState('');
   const [salaryTypeFilter, setSalaryTypeFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('true');
+
+  // Salary History Modal State
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyEmployee, setHistoryEmployee] = useState(null);
+  const [historyRecords, setHistoryRecords] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -87,6 +93,85 @@ const SalaryManagement = () => {
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to fetch salary structures');
       setLoading(false);
+    }
+  };
+
+  const computeRevisionsWithTenure = (records) => {
+    if (!records || records.length === 0) return [];
+
+    // Sort chronologically ascending (oldest to newest) to determine proper start and end dates
+    const chronological = [...records].sort((a, b) => {
+      const dateA = new Date(a.effectiveDate || a.createdAt).getTime();
+      const dateB = new Date(b.effectiveDate || b.createdAt).getTime();
+      if (dateA !== dateB) return dateA - dateB;
+      return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+    });
+
+    const formatDateStr = (d) => {
+      if (!d) return '';
+      const dt = new Date(d);
+      return dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    };
+
+    const withTenure = chronological.map((rec, index) => {
+      const startDate = rec.effectiveDate ? new Date(rec.effectiveDate) : new Date(rec.createdAt);
+      const isLatest = index === chronological.length - 1;
+      let endDate = null;
+      let periodLabel = '';
+      let durationBadge = '';
+
+      if (isLatest) {
+        periodLabel = `${formatDateStr(startDate)} → Present (Ongoing)`;
+        durationBadge = 'Current / Active';
+      } else {
+        const nextRec = chronological[index + 1];
+        const nextStart = nextRec.effectiveDate ? new Date(nextRec.effectiveDate) : new Date(nextRec.createdAt);
+
+        if (nextStart.getTime() > startDate.getTime()) {
+          // Ending date is 1 day before the next revision started
+          const dayBefore = new Date(nextStart.getTime() - 24 * 60 * 60 * 1000);
+          endDate = dayBefore;
+          periodLabel = `${formatDateStr(startDate)} → ${formatDateStr(dayBefore)}`;
+
+          const diffDays = Math.max(1, Math.round((dayBefore - startDate) / (1000 * 60 * 60 * 24)) + 1);
+          const diffMonths = Math.round(diffDays / 30);
+          durationBadge = diffMonths >= 1 ? `${diffMonths} month${diffMonths > 1 ? 's' : ''}` : `${diffDays} days`;
+        } else {
+          // If created on same effective date
+          const replaceDate = nextRec.createdAt ? new Date(nextRec.createdAt) : startDate;
+          endDate = replaceDate;
+          periodLabel = `${formatDateStr(startDate)} → ${formatDateStr(replaceDate)}`;
+          durationBadge = 'Superseded';
+        }
+      }
+
+      return {
+        ...rec,
+        startDate,
+        endDate,
+        isLatest,
+        periodLabel,
+        durationBadge,
+      };
+    });
+
+    // Return latest first so current rate is prominent at the top
+    return withTenure.reverse();
+  };
+
+  const handleOpenHistory = async (employee) => {
+    if (!employee || !employee._id) return;
+    setHistoryEmployee(employee);
+    setShowHistoryModal(true);
+    setLoadingHistory(true);
+    try {
+      const data = await salaryService.getSalaryStructureByEmployee(employee._id);
+      setHistoryRecords(data.history || []);
+    } catch (err) {
+      toast.error('Failed to load salary history');
+      setHistoryRecords([]);
+    } finally {
+      setLoadingHistory(false);
     }
   };
 
@@ -345,15 +430,15 @@ const SalaryManagement = () => {
             </select>
           </div>
 
-          <div className="col-md-2">
+          <div className="col-md-3">
             <select
               className="form-select"
               value={statusFilter}
               onChange={handleFilterChange(setStatusFilter, 'status')}
             >
-              <option value="">All Statuses</option>
-              <option value="true">Active</option>
-              <option value="false">Inactive</option>
+              <option value="true">Active Only (1 Row per Employee)</option>
+              <option value="">All Records (with Past Revisions)</option>
+              <option value="false">Historical Records Only</option>
             </select>
           </div>
 
@@ -412,16 +497,40 @@ const SalaryManagement = () => {
                   const stdNet = Math.max(0, (s.basicSalary || 0) + totalAllowances - totalDeductions);
 
                   return (
-                    <tr key={s._id}>
+                    <tr key={s._id} className={!s.isActive ? 'bg-light bg-opacity-25 text-muted' : ''}>
                       <td className="ps-4">
-                        <div className="fw-bold text-dark">
-                          {s.employee?.fullName || 'Unknown Employee'}
+                        <div className="d-flex align-items-center gap-2">
+                          <div className={`fw-bold ${s.isActive ? 'text-dark' : 'text-secondary'}`}>
+                            {s.employee?.fullName || 'Unknown Employee'}
+                          </div>
+                          {!s.isActive ? (
+                            <Badge bg="light" text="secondary" className="border small fw-normal py-1 px-2">
+                              Historical Record
+                            </Badge>
+                          ) : (
+                            <Badge bg="success" className="bg-opacity-10 text-success border border-success border-opacity-25 small fw-normal py-1 px-2">
+                              Current Structure
+                            </Badge>
+                          )}
                         </div>
-                        <div className="small text-muted d-flex align-items-center gap-2">
+                        <div className="small text-muted d-flex align-items-center gap-2 mt-1">
                           <span className="badge bg-light text-secondary border font-monospace">
                             {s.employee?.employeeId || 'N/A'}
                           </span>
                           <span>• {s.employee?.role || 'Staff'}</span>
+                          <button
+                            type="button"
+                            className="btn btn-link p-0 text-decoration-none small text-primary d-inline-flex align-items-center gap-1 ms-1"
+                            onClick={() => handleOpenHistory(s.employee)}
+                            title="Click to view full salary progression"
+                          >
+                            <FaHistory size={10} /> History
+                          </button>
+                          {s.remarks && (
+                            <span className="text-truncate d-none d-lg-inline text-muted" style={{ maxWidth: '180px' }} title={s.remarks}>
+                              • {s.remarks}
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td>
@@ -449,17 +558,33 @@ const SalaryManagement = () => {
                       <td>
                         <button
                           onClick={() => handleToggleStatus(s._id)}
-                          className={`badge border-0 px-2 py-1 rounded-pill ${
-                            s.isActive ? 'bg-success text-white' : 'bg-secondary text-white'
+                          className={`badge border-0 px-2 py-1 rounded-pill d-inline-flex align-items-center gap-1 ${
+                            s.isActive ? 'bg-success text-white' : 'bg-secondary bg-opacity-75 text-white'
                           }`}
                           style={{ cursor: 'pointer' }}
-                          title="Click to toggle status"
+                          title={s.isActive ? 'Active Structure (Click to toggle)' : 'Historical Structure (Click to activate)'}
                         >
-                          {s.isActive ? 'Active' : 'Inactive'}
+                          {s.isActive ? (
+                            <>
+                              <FaCheckCircle size={10} /> Active (Current)
+                            </>
+                          ) : (
+                            <>
+                              <FaHistory size={10} /> Inactive (History)
+                            </>
+                          )}
                         </button>
                       </td>
                       <td className="text-end pe-4">
                         <div className="d-flex justify-content-end gap-2">
+                          <Button
+                            variant="outline-secondary"
+                            size="sm"
+                            onClick={() => handleOpenHistory(s.employee)}
+                            title="View Salary Revision History"
+                          >
+                            <FaHistory />
+                          </Button>
                           <Button
                             variant="outline-primary"
                             size="sm"
@@ -763,6 +888,124 @@ const SalaryManagement = () => {
           </Button>
           <Button variant="danger" onClick={handleDelete}>
             Delete
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Salary Revision History Modal */}
+      <Modal show={showHistoryModal} onHide={() => setShowHistoryModal(false)} size="lg" centered>
+        <Modal.Header closeButton className="border-bottom bg-light">
+          <div>
+            <Modal.Title className="fw-bold text-navy h5 mb-1 d-flex align-items-center gap-2">
+              <FaHistory className="text-primary" /> Salary Revision History
+            </Modal.Title>
+            {historyEmployee && (
+              <div className="text-muted small">
+                <strong>{historyEmployee.fullName}</strong> ({historyEmployee.employeeId}) • {historyEmployee.role || 'Staff'} {historyEmployee.specialization ? `• ${historyEmployee.specialization}` : ''}
+              </div>
+            )}
+          </div>
+        </Modal.Header>
+        <Modal.Body className="p-4" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+          {loadingHistory ? (
+            <div className="text-center py-5"><LoadingSpinner /></div>
+          ) : historyRecords.length === 0 ? (
+            <div className="text-center py-4 text-muted">No salary history records found for this employee.</div>
+          ) : (
+            <div>
+              <div className="small text-muted mb-3 d-flex justify-content-between align-items-center">
+                <span>Total revisions recorded: <strong>{historyRecords.length}</strong></span>
+                <span className="badge bg-light text-secondary border">Timeline: Starting Date → Ending Date</span>
+              </div>
+              {computeRevisionsWithTenure(historyRecords).map((item) => {
+                const itemAllowances = typeof item.allowances === 'number'
+                  ? item.allowances
+                  : (Array.isArray(item.allowanceItems) ? item.allowanceItems.reduce((sum, a) => sum + (Number(a.amount) || 0), 0) : 0);
+                const itemDeductions = typeof item.deductions === 'number'
+                  ? item.deductions
+                  : (Array.isArray(item.deductionItems) ? item.deductionItems.reduce((sum, d) => sum + (Number(d.amount) || 0), 0) : 0);
+                const itemNet = Math.max(0, (item.basicSalary || 0) + itemAllowances - itemDeductions);
+
+                return (
+                  <Card key={item._id} className={`mb-3 border ${item.isActive ? 'border-success shadow-sm bg-white' : 'border-light bg-light bg-opacity-40'}`}>
+                    <Card.Body className="p-3">
+                      <div className="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom flex-wrap gap-2">
+                        <div className="d-flex align-items-center gap-2 flex-wrap">
+                          {item.isActive ? (
+                            <Badge bg="success" className="px-2.5 py-1.5 d-flex align-items-center gap-1.5 fw-semibold">
+                              <FaCheckCircle size={11} /> Active (Current Structure)
+                            </Badge>
+                          ) : (
+                            <div className="d-flex align-items-center gap-1.5 flex-wrap">
+                              <Badge bg="secondary" className="px-2 py-1 bg-opacity-75 fw-normal">
+                                Past Period
+                              </Badge>
+                              <Badge bg="success" className="px-2 py-1 bg-opacity-90 fw-semibold d-flex align-items-center gap-1">
+                                <FaCheckCircle size={10} /> Disbursed (Paid)
+                              </Badge>
+                            </div>
+                          )}
+                          <span className="fw-bold text-navy d-flex align-items-center gap-1.5">
+                            <FaCalendarAlt size={13} className="text-primary" />
+                            Period: <span className="text-dark">{item.periodLabel}</span>
+                          </span>
+                        </div>
+                        <Badge bg={item.isActive ? "success" : "light"} text={item.isActive ? "white" : "secondary"} className={`border px-2 py-1 ${item.isActive ? 'bg-opacity-75' : ''}`}>
+                          {item.durationBadge}
+                        </Badge>
+                      </div>
+
+                      <Row className="g-2 text-center my-2">
+                        <Col xs={6} sm={3}>
+                          <div className="text-muted small">Basic Pay</div>
+                          <div className="fw-bold text-dark fs-6">
+                            ₹{item.basicSalary?.toLocaleString('en-IN')}
+                            <span className="small text-muted fw-normal">{item.salaryType === 'Daily' ? '/day' : '/mo'}</span>
+                          </div>
+                        </Col>
+                        <Col xs={6} sm={3}>
+                          <div className="text-muted small">Allowances</div>
+                          <div className="fw-bold text-success fs-6">+₹{itemAllowances.toLocaleString('en-IN')}</div>
+                        </Col>
+                        <Col xs={6} sm={3}>
+                          <div className="text-muted small">Deductions</div>
+                          <div className="fw-bold text-danger fs-6">-₹{itemDeductions.toLocaleString('en-IN')}</div>
+                        </Col>
+                        <Col xs={6} sm={3}>
+                          <div className="text-muted small">{item.isActive ? 'Net Base Pay' : 'Price Disbursed'}</div>
+                          <div className={`fw-bold fs-5 ${item.isActive ? 'text-navy' : 'text-success'}`}>
+                            ₹{itemNet.toLocaleString('en-IN')}
+                          </div>
+                          {!item.isActive && (
+                            <div className="text-success small fw-medium" style={{ fontSize: '0.72rem' }}>
+                              ✓ Settled in Payroll
+                            </div>
+                          )}
+                        </Col>
+                      </Row>
+
+                      {item.remarks && (
+                        <div className="mt-2 pt-2 border-top small text-muted">
+                          <strong>Appraisal / Reason:</strong> {item.remarks}
+                        </div>
+                      )}
+
+                      {item.createdAt && (
+                        <div className="small text-muted text-end mt-1" style={{ fontSize: '0.75rem' }}>
+                          Recorded on: {new Date(item.createdAt).toLocaleDateString('en-IN')}
+                          {item.createdBy?.firstName && ` by ${item.createdBy.firstName} ${item.createdBy.lastName || ''}`}
+                        </div>
+                      )}
+                    </Card.Body>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </Modal.Body>
+        <Modal.Footer className="bg-light">
+          <Button variant="secondary" onClick={() => setShowHistoryModal(false)}>
+            Close
           </Button>
         </Modal.Footer>
       </Modal>

@@ -77,7 +77,13 @@ const ServiceHistoryDetails = () => {
               </div>
               <div className="col-md-6">
                 <span className="text-muted d-block small fw-bold">Assigned Mechanic</span>
-                <p className="mb-2">{jobCard?.assignedMechanic ? `${jobCard.assignedMechanic.firstName} ${jobCard.assignedMechanic.lastName}` : 'N/A'}</p>
+                <p className="mb-2">
+                  {jobCard?.assignedMechanic ? (
+                    jobCard.assignedMechanic.fullName ||
+                    `${jobCard.assignedMechanic.firstName || ''} ${jobCard.assignedMechanic.lastName || ''}`.trim() ||
+                    'Assigned Mechanic'
+                  ) : 'N/A'}
+                </p>
               </div>
             </div>
 

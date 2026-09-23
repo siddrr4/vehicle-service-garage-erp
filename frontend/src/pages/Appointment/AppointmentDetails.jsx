@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Card, Row, Col, Badge, Button } from 'react-bootstrap';
-import { FaArrowLeft, FaEdit, FaCalendarAlt, FaUser, FaCar, FaClock, FaWrench, FaTools, FaCheckCircle, FaTimesCircle, FaExclamationCircle } from 'react-icons/fa';
+import { FaArrowLeft, FaEdit, FaCalendarAlt, FaUser, FaCar, FaClock, FaWrench, FaTools, FaCheckCircle, FaTimesCircle, FaExclamationCircle, FaUserPlus } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import appointmentService from '../../services/appointmentService';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
+import AssignAppointmentMechanicModal from './AssignAppointmentMechanicModal';
 import { formatDateIST } from '../../utils/dateUtils';
 
 const AppointmentDetails = () => {
@@ -12,18 +13,20 @@ const AppointmentDetails = () => {
   const navigate = useNavigate();
   const [appointment, setAppointment] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+
+  const fetchAppointment = async () => {
+    try {
+      const data = await appointmentService.getAppointmentById(id);
+      setAppointment(data);
+      setLoading(false);
+    } catch (error) {
+      toast.error('Failed to load appointment details');
+      navigate('/appointments');
+    }
+  };
 
   useEffect(() => {
-    const fetchAppointment = async () => {
-      try {
-        const data = await appointmentService.getAppointmentById(id);
-        setAppointment(data);
-        setLoading(false);
-      } catch (error) {
-        toast.error('Failed to load appointment details');
-        navigate('/appointments');
-      }
-    };
     fetchAppointment();
   }, [id, navigate]);
 
@@ -87,24 +90,76 @@ const AppointmentDetails = () => {
                 </div>
               </div>
 
-              <div>
-                <h6 className="text-muted fw-bold text-uppercase small mb-3">Assigned To</h6>
-                {appointment.serviceAdvisor ? (
-                  <div className="d-flex align-items-center gap-3 p-3 bg-light rounded border border-light">
-                    <div className="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style={{ width: '40px', height: '40px' }}>
-                      {appointment.serviceAdvisor.firstName.charAt(0)}{appointment.serviceAdvisor.lastName.charAt(0)}
+              <div className="mb-4">
+                <h6 className="text-muted fw-bold text-uppercase small mb-3">Assigned Staff</h6>
+                <Row className="g-3">
+                  <Col sm={6}>
+                    <p className="text-muted mb-2 small fw-semibold">Service Advisor</p>
+                    {appointment.serviceAdvisor ? (
+                      <div className="d-flex align-items-center gap-3 p-3 bg-light rounded border border-light h-100">
+                        <div className="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center fw-bold" style={{ width: '40px', height: '40px' }}>
+                          {appointment.serviceAdvisor.firstName?.charAt(0)}{appointment.serviceAdvisor.lastName?.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="fw-bold text-dark mb-0">{appointment.serviceAdvisor.firstName} {appointment.serviceAdvisor.lastName}</p>
+                          <p className="text-muted small mb-0">Service Advisor</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="d-flex align-items-center gap-2 text-muted p-3 bg-light rounded border border-light h-100">
+                        <FaExclamationCircle className="text-warning" />
+                        <span className="small">No service advisor assigned.</span>
+                      </div>
+                    )}
+                  </Col>
+
+                  <Col sm={6}>
+                    <div className="d-flex justify-content-between align-items-center mb-2">
+                      <span className="text-muted small fw-semibold">Assigned Mechanic</span>
+                      <Button
+                        variant="outline-primary"
+                        size="sm"
+                        className="py-0 px-2"
+                        style={{ fontSize: '0.75rem' }}
+                        onClick={() => setAssignModalOpen(true)}
+                      >
+                        {appointment.assignedMechanic ? <><FaEdit className="me-1" /> Change</> : <><FaUserPlus className="me-1" /> Assign</>}
+                      </Button>
                     </div>
-                    <div>
-                      <p className="fw-bold text-dark mb-0">{appointment.serviceAdvisor.firstName} {appointment.serviceAdvisor.lastName}</p>
-                      <p className="text-muted small mb-0">Service Advisor</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="d-flex align-items-center gap-2 text-warning p-3 bg-light rounded border border-warning border-opacity-25">
-                    <FaExclamationCircle />
-                    <span className="fw-medium">No service advisor assigned yet.</span>
-                  </div>
-                )}
+                    {appointment.assignedMechanic ? (
+                      <div className="d-flex align-items-center justify-content-between p-3 bg-light rounded border border-light h-100">
+                        <div className="d-flex align-items-center gap-3">
+                          <div className="bg-orange text-white rounded-circle d-flex align-items-center justify-content-center fw-bold" style={{ width: '40px', height: '40px' }}>
+                            <FaWrench size={16} />
+                          </div>
+                          <div>
+                            <p className="fw-bold text-dark mb-0">{appointment.assignedMechanic.fullName}</p>
+                            <p className="text-muted small mb-0">
+                              {appointment.assignedMechanic.specialization || 'Mechanic'}
+                              {appointment.assignedMechanic.employeeId && ` • ${appointment.assignedMechanic.employeeId}`}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="d-flex align-items-center justify-content-between p-3 bg-light rounded border border-light h-100">
+                        <div className="d-flex align-items-center gap-2 text-muted">
+                          <FaTools className="text-secondary opacity-50" />
+                          <span className="small fst-italic">No mechanic assigned yet.</span>
+                        </div>
+                        <Button
+                          variant="primary-custom"
+                          size="sm"
+                          className="py-1 px-2"
+                          style={{ fontSize: '0.75rem' }}
+                          onClick={() => setAssignModalOpen(true)}
+                        >
+                          <FaUserPlus className="me-1" /> Assign
+                        </Button>
+                      </div>
+                    )}
+                  </Col>
+                </Row>
               </div>
             </Card.Body>
           </Card>
@@ -170,6 +225,14 @@ const AppointmentDetails = () => {
           </div>
         </Col>
       </Row>
+
+      {/* Assign Mechanic Modal */}
+      <AssignAppointmentMechanicModal
+        show={assignModalOpen}
+        onHide={() => setAssignModalOpen(false)}
+        appointment={appointment}
+        onSuccess={fetchAppointment}
+      />
     </div>
   );
 };

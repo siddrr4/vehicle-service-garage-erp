@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Modal, Button, Form, Row, Col, Alert, Badge } from 'react-bootstrap';
-import { FaUserPlus, FaSearch, FaCar, FaClock, FaCheckCircle, FaExclamationTriangle } from 'react-icons/fa';
+import { FaUserPlus, FaSearch, FaCar, FaClock, FaCheckCircle, FaExclamationTriangle, FaSync } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import api from '../../services/api';
 import appointmentService from '../../services/appointmentService';
@@ -50,6 +50,8 @@ const WalkInModal = ({ show, onHide, onSuccess }) => {
   const [availableSlots, setAvailableSlots] = useState([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [nextSlotInfo, setNextSlotInfo] = useState(null);
+  const [recommendedSlotInfo, setRecommendedSlotInfo] = useState(null);
+  const [showAllSlots, setShowAllSlots] = useState(false);
 
   useEffect(() => {
     if (show) {
@@ -70,6 +72,8 @@ const WalkInModal = ({ show, onHide, onSuccess }) => {
     setSearchResults([]);
     setSelectedCustomer(null);
     setIsNewCustomer(false);
+    setRecommendedSlotInfo(null);
+    setShowAllSlots(false);
     setNewCustomerData({
       fullName: '',
       mobileNumber: '',
@@ -98,16 +102,28 @@ const WalkInModal = ({ show, onHide, onSuccess }) => {
   const fetchTodaySlots = async (date) => {
     try {
       setLoadingSlots(true);
-      const data = await appointmentService.getAvailableSlots(date);
+      const data = await appointmentService.getNextWalkInSlot(date);
       setAvailableSlots(data.slots || []);
-      const firstAvail = (data.slots || []).find(s => s.status === 'Available');
-      if (firstAvail) {
-        setPreferredTime(firstAvail.time);
+      setRecommendedSlotInfo(data);
+      if (data.time) {
+        setPreferredTime(data.time);
       } else {
         setPreferredTime('');
       }
       setLoadingSlots(false);
     } catch (error) {
+      try {
+        const fallback = await appointmentService.getAvailableSlots(date);
+        setAvailableSlots(fallback.slots || []);
+        const firstAvail = (fallback.slots || []).find(s => s.status === 'Available');
+        if (firstAvail) {
+          setPreferredTime(firstAvail.time);
+        } else {
+          setPreferredTime('');
+        }
+      } catch (e) {
+        // ignore
+      }
       setLoadingSlots(false);
     }
   };
@@ -215,7 +231,14 @@ const WalkInModal = ({ show, onHide, onSuccess }) => {
       if (onSuccess) onSuccess();
       onHide();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to create walk-in booking');
+      if (error.response?.status === 409 && error.response?.data?.nextSlot) {
+        toast.warning(error.response.data.message);
+        setPreferredTime(error.response.data.nextSlot.time);
+        setRecommendedSlotInfo(error.response.data.nextSlot);
+        fetchTodaySlots(preferredDate);
+      } else {
+        toast.error(error.response?.data?.message || 'Failed to create walk-in booking');
+      }
     } finally {
       setLoading(false);
     }
@@ -503,35 +526,191 @@ const WalkInModal = ({ show, onHide, onSuccess }) => {
               </Col>
 
               <Col md={12}>
-                <Form.Label className="fw-semibold">Select Time Slot (Actual Live Capacity) *</Form.Label>
+                <div className="d-flex justify-content-between align-items-center mb-2">
+                  <Form.Label className="fw-semibold mb-0">Walk-in Service Slot (Live Garage Capacity) *</Form.Label>
+                  <Button 
+                    variant="outline-primary" 
+                    size="sm"
+                    className="d-flex align-items-center gap-1 py-0 px-2"
+                    onClick={() => fetchTodaySlots(preferredDate)}
+                    disabled={loadingSlots}
+                  >
+                    <FaSync className={loadingSlots ? 'fa-spin' : ''} size={11} />
+                    <span className="small">Refresh Capacity</span>
+                  </Button>
+                </div>
                 {loadingSlots ? (
                   <div className="p-3 text-muted">Calculating real mechanic availability...</div>
-                ) : (
-                  <Row className="g-2">
-                    {availableSlots.map(slot => (
-                      <Col key={slot.time} xs={6} md={4}>
-                        <div 
-                          className={`p-3 border rounded text-center cursor-pointer ${
-                            preferredTime === slot.time ? 'border-primary bg-primary bg-opacity-10 fw-bold' : ''
-                          } ${slot.available <= 0 ? 'bg-light text-muted opacity-75' : ''}`}
-                          style={{ cursor: slot.available <= 0 ? 'not-allowed' : 'pointer' }}
-                          onClick={() => {
-                            if (slot.available > 0) setPreferredTime(slot.time);
-                          }}
-                        >
-                          <div className="small fw-bold">{slot.time}</div>
-                          {slot.status === 'No Capacity' || slot.capacity === 0 ? (
-                            <Badge bg="secondary" className="mt-1">No Capacity</Badge>
-                          ) : slot.available === 0 ? (
-                            <Badge bg="danger" className="mt-1">FULL</Badge>
-                          ) : (
-                            <Badge bg="success" className="mt-1">{slot.available} slot(s) left</Badge>
-                          )}
+                ) : (() => {
+                  const checkedInMechanics = recommendedSlotInfo?.checkedInMechanics ?? (availableSlots.some(s => s.capacity > 0) ? availableSlots[0].capacity : 0);
+                  const hasAvailableSlot = recommendedSlotInfo && !recommendedSlotInfo.allRemainingSlotsFull && preferredTime && checkedInMechanics > 0;
+
+                  if (hasAvailableSlot) {
+                    return (
+                      <div className="card border-primary border-2 bg-primary bg-opacity-10 p-3 mb-3 rounded-3 shadow-sm">
+                        <div className="d-flex justify-content-between align-items-start mb-2 flex-wrap gap-2">
+                          <div>
+                            <Badge bg="primary" className="px-2 py-1 text-uppercase mb-1">
+                              Recommended Walk-in Slot
+                            </Badge>
+                            <h5 className="fw-bold text-navy mb-0">
+                              {preferredDate === todayStr ? 'Today' : preferredDate} &bull; {preferredTime}
+                            </h5>
+                            <div className="text-muted small">
+                              {recommendedSlotInfo.isCurrentSlot 
+                                ? 'Current active slot (immediately valid for check-in)' 
+                                : 'Nearest available slot from current time onward'}
+                            </div>
+                          </div>
+                          <div className="text-sm-end">
+                            <Badge bg="success" className="px-2 py-1 mb-1 d-inline-block">
+                              <FaCheckCircle className="me-1" /> Slot Assigned Successfully
+                            </Badge>
+                            <div className="small text-success fw-bold">
+                              {recommendedSlotInfo.available} mechanic available
+                            </div>
+                          </div>
                         </div>
-                      </Col>
-                    ))}
-                  </Row>
-                )}
+
+                        <div className="d-flex justify-content-between align-items-center bg-white p-2 rounded border mb-2 small">
+                          <span className="text-muted">Real Garage Capacity:</span>
+                          <span className="fw-bold text-navy">
+                            {recommendedSlotInfo.booked} / {recommendedSlotInfo.capacity} bays occupied
+                          </span>
+                        </div>
+
+                        <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                          <Button 
+                            variant="outline-secondary" 
+                            size="sm"
+                            onClick={() => setShowAllSlots(!showAllSlots)}
+                          >
+                            {showAllSlots ? 'Hide Alternative Slots' : 'Choose Another Available Slot'}
+                          </Button>
+                          <span className="small text-success fw-medium">
+                            ✓ Automatically selected based on live mechanic attendance
+                          </span>
+                        </div>
+
+                        {showAllSlots && (
+                          <div className="mt-3 pt-3 border-top">
+                            <div className="small fw-bold text-navy mb-2">Other Valid Slots:</div>
+                            <Row className="g-2">
+                              {availableSlots.map(slot => (
+                                <Col key={slot.time} xs={6} md={4}>
+                                  <div 
+                                    className={`p-2 border rounded text-center cursor-pointer ${
+                                      preferredTime === slot.time ? 'border-primary bg-primary bg-opacity-25 fw-bold' : 'bg-white'
+                                    } ${slot.available <= 0 ? 'bg-light text-muted opacity-75' : ''}`}
+                                    style={{ cursor: slot.available <= 0 ? 'not-allowed' : 'pointer' }}
+                                    onClick={() => {
+                                      if (slot.available > 0) setPreferredTime(slot.time);
+                                    }}
+                                  >
+                                    <div className="small fw-bold">{slot.time}</div>
+                                    {slot.status === 'No Capacity' || slot.capacity === 0 ? (
+                                      <Badge bg="secondary" className="mt-1">No Capacity</Badge>
+                                    ) : slot.available === 0 ? (
+                                      <Badge bg="danger" className="mt-1">FULL</Badge>
+                                    ) : (
+                                      <Badge bg="success" className="mt-1">{slot.available} left</Badge>
+                                    )}
+                                  </div>
+                                </Col>
+                              ))}
+                            </Row>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  if (checkedInMechanics === 0) {
+                    /* CASE A: ZERO MECHANICS CHECKED IN */
+                    return (
+                      <Alert variant="warning" className="border-0 shadow-sm p-3 rounded-3 mb-3">
+                        <div className="d-flex align-items-start gap-2">
+                          <FaExclamationTriangle className="text-warning mt-1 flex-shrink-0" size={24} />
+                          <div className="w-100">
+                            <div className="fw-bold text-navy">No Mechanics Available Today</div>
+                            <p className="text-muted small mb-2">
+                              No mechanics are currently checked in today. A service slot cannot be assigned until mechanic availability is confirmed.
+                            </p>
+                            <div className="d-flex gap-2 flex-wrap">
+                              <Button 
+                                variant="outline-warning" 
+                                size="sm"
+                                onClick={() => {
+                                  setStep('noCapacity');
+                                  fetchNextAvailableSlot();
+                                }}
+                              >
+                                Add to Waiting Queue
+                              </Button>
+                              <Button 
+                                variant="primary" 
+                                size="sm"
+                                onClick={handleNextDate}
+                              >
+                                View Next Available Date
+                              </Button>
+                              <Button 
+                                variant="outline-secondary" 
+                                size="sm"
+                                onClick={() => fetchTodaySlots(preferredDate)}
+                                disabled={loadingSlots}
+                              >
+                                <FaSync className={loadingSlots ? 'fa-spin' : ''} /> Refresh Capacity
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </Alert>
+                    );
+                  }
+
+                  /* CASE B: MECHANICS AVAILABLE BUT ALL REMAINING SLOTS FULL */
+                  return (
+                    <Alert variant="danger" className="border-0 shadow-sm p-3 rounded-3 mb-3">
+                      <div className="d-flex align-items-start gap-2">
+                        <FaExclamationTriangle className="text-danger mt-1 flex-shrink-0" size={24} />
+                        <div className="w-100">
+                          <div className="fw-bold text-navy">No Service Slot Available Today</div>
+                          <p className="text-muted small mb-2">
+                            All remaining service slots are currently full or mechanics are occupied with active job cards.
+                          </p>
+                          <div className="d-flex gap-2 flex-wrap">
+                            <Button 
+                              variant="outline-danger" 
+                              size="sm"
+                              onClick={() => {
+                                setStep('noCapacity');
+                                fetchNextAvailableSlot();
+                              }}
+                            >
+                              Add to Waiting Queue
+                            </Button>
+                            <Button 
+                              variant="primary" 
+                              size="sm"
+                              onClick={handleNextDate}
+                            >
+                              View Next Available Date
+                            </Button>
+                            <Button 
+                              variant="outline-secondary" 
+                              size="sm"
+                              onClick={() => fetchTodaySlots(preferredDate)}
+                              disabled={loadingSlots}
+                            >
+                              <FaSync className={loadingSlots ? 'fa-spin' : ''} /> Refresh Capacity
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </Alert>
+                  );
+                })()}
               </Col>
 
               <Col md={12}>
@@ -551,7 +730,7 @@ const WalkInModal = ({ show, onHide, onSuccess }) => {
               <Button 
                 variant="orange" 
                 type="submit" 
-                disabled={loading || !preferredTime}
+                disabled={loading || !preferredTime || (recommendedSlotInfo?.checkedInMechanics === 0)}
               >
                 Confirm Walk-in Check-In
               </Button>

@@ -10,8 +10,9 @@ export const getEmployees = async (page = 1, limit = 10, keyword = '', role = ''
   return data;
 };
 
-export const getActiveMechanics = async () => {
-  const { data } = await api.get('/employees/active-mechanics');
+export const getActiveMechanics = async (params = {}) => {
+  const query = params.includeAll ? '?includeAll=true' : '';
+  const { data } = await api.get(`/employees/active-mechanics${query}`);
   return data;
 };
 

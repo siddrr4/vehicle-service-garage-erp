@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Card, Table, Row, Col, Button, Modal, Form } from 'react-bootstrap';
-import { FaArrowLeft, FaPrint, FaCar, FaUser, FaTools } from 'react-icons/fa';
+import { Card, Table, Row, Col, Button, Modal, Form, Badge } from 'react-bootstrap';
+import { FaArrowLeft, FaPrint, FaDownload, FaCar, FaUser, FaTools, FaFileInvoiceDollar, FaCheckCircle, FaExclamationCircle } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import billingService from '../../services/billingService';
 import settingService from '../../services/settingService';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
 import { AuthContext } from '../../context/AuthContext';
 import { formatDateIST } from '../../utils/dateUtils';
+import { formatINR, numberToWordsINR } from '../../utils/currencyUtils';
 
 const InvoiceDetails = () => {
   const { id } = useParams();
@@ -29,10 +30,10 @@ const InvoiceDetails = () => {
       try {
         const [invoiceData, settingsData] = await Promise.all([
           billingService.getInvoiceById(id),
-          settingService.getPublicSettings()
+          settingService.getPublicSettings().catch(() => null)
         ]);
         setInvoice(invoiceData);
-        setSettings(settingsData);
+        setSettings(invoiceData?.garageSettings || settingsData || {});
         setLoading(false);
       } catch (error) {
         toast.error('Failed to load invoice details');
@@ -45,6 +46,13 @@ const InvoiceDetails = () => {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleDownloadPdf = () => {
+    toast.info("Select 'Save as PDF' in your browser print destination to download.", { autoClose: 3500 });
+    setTimeout(() => {
+      window.print();
+    }, 400);
   };
 
   if (loading) return <LoadingSpinner />;
@@ -66,7 +74,7 @@ const InvoiceDetails = () => {
     }
     
     if (user?.role === 'customer') {
-      if (loading) return; // Prevent double click
+      if (loading) return;
       try {
         setLoading(true);
         const orderData = await billingService.createPaymentOrder(invoice._id, amount);
@@ -81,7 +89,7 @@ const InvoiceDetails = () => {
           key: orderData.razorpayKeyId,
           amount: orderData.amount,
           currency: orderData.currency,
-          name: 'Garage ERP Auto Services',
+          name: settings?.garageName || 'Garage ERP Auto Services',
           description: `Invoice: ${orderData.invoiceNumber}`,
           order_id: orderData.razorpayOrderId,
           handler: async function (response) {
@@ -167,31 +175,81 @@ const InvoiceDetails = () => {
     }
   };
 
-  const jobCard = invoice.jobCard;
+  const jobCard = invoice.jobCard || {};
+  const vehicle = invoice.vehicle || jobCard.vehicle || {};
+  const customer = invoice.customer || jobCard.customer || {};
+  const garage = invoice.garageSettings || settings || {};
+
+  const isInterState = invoice.isInterState !== undefined 
+    ? invoice.isInterState 
+    : ((garage.state || 'Karnataka').toLowerCase() !== (customer.state || garage.state || 'Karnataka').toLowerCase());
+
+  const placeOfSupply = invoice.placeOfSupply || customer.state || garage.state || 'Karnataka';
+  const defaultGstRate = Number(garage.defaultTaxGst) || 18;
+
+  // Derive tax breakdown if not directly stored
+  const taxBreakup = invoice.taxBreakup || {
+    partsTaxable: invoice.totalParts || 0,
+    partsCgst: isInterState ? 0 : (invoice.totalParts || 0) * ((defaultGstRate / 2) / 100),
+    partsSgst: isInterState ? 0 : (invoice.totalParts || 0) * ((defaultGstRate / 2) / 100),
+    partsIgst: isInterState ? (invoice.totalParts || 0) * (defaultGstRate / 100) : 0,
+    partsCess: 0,
+    partsTotal: invoice.totalParts || 0,
+    servicesTaxable: invoice.isFreeService ? 0 : ((invoice.totalLabour || 0) + (invoice.totalWashing || 0)),
+    servicesCgst: invoice.isFreeService || isInterState ? 0 : ((invoice.totalLabour || 0) + (invoice.totalWashing || 0)) * ((defaultGstRate / 2) / 100),
+    servicesSgst: invoice.isFreeService || isInterState ? 0 : ((invoice.totalLabour || 0) + (invoice.totalWashing || 0)) * ((defaultGstRate / 2) / 100),
+    servicesIgst: invoice.isFreeService || !isInterState ? 0 : ((invoice.totalLabour || 0) + (invoice.totalWashing || 0)) * (defaultGstRate / 100),
+    servicesCess: 0,
+    servicesTotal: invoice.isFreeService ? 0 : ((invoice.totalLabour || 0) + (invoice.totalWashing || 0)),
+    totalTaxable: (invoice.totalParts || 0) + (invoice.isFreeService ? 0 : ((invoice.totalLabour || 0) + (invoice.totalWashing || 0))),
+    totalCgst: 0,
+    totalSgst: 0,
+    totalIgst: 0,
+    totalCess: 0,
+    totalDiscount: invoice.discount || 0,
+    grandTotal: invoice.grandTotal || 0
+  };
+
+  const amountInWords = invoice.amountInWords || numberToWordsINR(invoice.grandTotal);
+
+  // Latest payment information
+  const lastPayment = invoice.payments && invoice.payments.length > 0
+    ? invoice.payments[invoice.payments.length - 1]
+    : null;
+
+  // Next Service Due estimation (+6 months or +5000 km)
+  const currentOdo = vehicle.currentOdometerReading || 0;
+  const nextOdoDue = currentOdo > 0 ? `${(currentOdo + 5000).toLocaleString('en-IN')} km` : 'After 5,000 km';
+  const serviceDateObj = new Date(invoice.createdAt || invoice.invoiceDate || Date.now());
+  const nextDateDueObj = new Date(serviceDateObj);
+  nextDateDueObj.setMonth(nextDateDueObj.getMonth() + 6);
+  const nextServiceDate = formatDateIST(nextDateDueObj);
 
   return (
-    <div className="container-fluid p-0">
+    <div className="container-fluid p-0 pb-5">
       
       {/* Top action header (hidden on print) */}
-      <div className="d-flex justify-content-between align-items-center mb-4 no-print">
+      <div className="d-flex justify-content-between align-items-center mb-4 no-print flex-wrap gap-2">
         <div className="d-flex align-items-center gap-3">
-          <Link to={user?.role === 'customer' ? '/customer-dashboard' : '/billing'} className="btn btn-light border btn-sm text-muted">
-            <FaArrowLeft /> {user?.role === 'customer' ? 'Back to Dashboard' : 'Back to Billing'}
+          <Link to={user?.role === 'customer' ? '/customer-dashboard' : '/billing'} className="btn btn-light border btn-sm text-muted shadow-sm">
+            <FaArrowLeft className="me-1" /> {user?.role === 'customer' ? 'Back to Dashboard' : 'Back to Billing'}
           </Link>
-          <h4 className="fw-bold m-0 text-navy">Invoice: {invoice.invoiceNumber}</h4>
+          <div className="d-flex align-items-center gap-2">
+            <h4 className="fw-bold m-0 text-navy">Invoice {invoice.invoiceNumber}</h4>
+            <Badge bg={invoice.status === 'Paid' ? 'success' : invoice.status === 'Partially Paid' ? 'warning' : 'danger'} className="text-uppercase px-2 py-1">
+              {invoice.status}
+            </Badge>
+          </div>
         </div>
-        <div className="d-flex gap-2 align-items-center">
-          {user?.role === 'customer' && invoice.balanceDue === 0 && (
-            <span className="text-success fw-bold me-2 fs-5">
-              ✓ Paid ({invoice.status === 'Unpaid' ? 'Pending' : invoice.status})
-            </span>
-          )}
-          {invoice.balanceDue > 0 && (
+
+        <div className="d-flex gap-2 align-items-center flex-wrap">
+          {invoice.balanceDue > 0 ? (
             <Button 
               variant={user?.role === 'customer' ? 'orange' : 'primary'} 
-              className="d-flex align-items-center gap-2 shadow-sm no-print" 
+              className="d-flex align-items-center gap-2 shadow-sm" 
               onClick={handleOpenPayModal}
             >
+              <FaFileInvoiceDollar />
               <span>
                 {user?.role === 'customer' 
                   ? (invoice.amountPaid > 0 ? 'Pay Remaining Amount' : 'Pay Now') 
@@ -199,305 +257,558 @@ const InvoiceDetails = () => {
                 }
               </span>
             </Button>
-          )}
-          {user?.role !== 'customer' && invoice.balanceDue === 0 && (
-            <span className="text-success fw-bold me-2 fs-5">
-              ✓ Paid
+          ) : (
+            <span className="text-success fw-bold me-2 fs-6 d-flex align-items-center gap-1">
+              <FaCheckCircle /> Fully Paid
             </span>
           )}
-          <Button variant="success" className="d-flex align-items-center gap-2 shadow-sm no-print" onClick={handlePrint}>
-            <FaPrint /> <span>Print / Save as PDF</span>
+
+          <Button variant="outline-dark" className="d-flex align-items-center gap-2 shadow-sm bg-white" onClick={handleDownloadPdf}>
+            <FaDownload /> <span>Download PDF</span>
+          </Button>
+
+          <Button variant="success" className="d-flex align-items-center gap-2 shadow-sm" onClick={handlePrint}>
+            <FaPrint /> <span>Print Invoice</span>
           </Button>
         </div>
       </div>
 
-      {/* Invoice Area */}
-      <Card className="border-0 shadow-sm invoice-container p-4 p-md-5 bg-white text-dark">
+      {/* Dealership-Grade GST Tax Invoice Area */}
+      <Card className="border shadow-sm invoice-container p-4 p-md-5 bg-white text-dark mx-auto" style={{ maxWidth: '980px', borderRadius: '4px' }}>
         <div className="invoice-print-area">
           
-          {/* Invoice Header */}
-          <Row className="mb-4 border-bottom pb-4 align-items-center">
-            <Col xs={12} md={6}>
-              <div className="d-flex align-items-center gap-2 mb-2">
-                <FaCar className="text-orange" size={32} />
-                <h3 className="fw-bold text-navy mb-0">{settings?.garageName || 'GARAGE ERP AUTO SERVICES'}</h3>
-              </div>
-              <p className="text-muted small mb-0">
-                {settings?.showGarageContact !== false ? (
-                  <>
-                    {settings?.address || '123 Garage Lane, Industrial Area, Phase II'}<br/>
-                    {settings?.city || 'Mumbai'}, {settings?.state || 'Maharashtra'} - {settings?.pincode || '400011'}<br/>
-                    Phone: {settings?.phone || '+91 98765 43210'} &bull; Email: {settings?.email || 'support@garageerp.com'}<br/>
-                  </>
-                ) : null}
-                {settings?.showGstin !== false && settings?.gstin ? (
-                  <><strong>GSTIN:</strong> {settings.gstin}</>
-                ) : null}
-              </p>
-            </Col>
-            
-            <Col xs={12} md={6} className="text-md-end mt-3 mt-md-0">
-              <h1 className="fw-bold text-navy mb-1 tracking-wider text-uppercase" style={{ fontSize: '2.5rem' }}>Tax Invoice</h1>
-              <div className="small text-secondary">
-                <div><strong>Invoice No:</strong> {invoice.invoiceNumber}</div>
-                <div><strong>Invoice Date:</strong> {formatDateIST(invoice.createdAt)}</div>
-                <div><strong>Status:</strong> <span className={invoice.status === 'Paid' ? 'text-success fw-bold' : 'text-danger fw-bold'}>{invoice.status === 'Unpaid' ? 'Pending' : invoice.status}</span></div>
-              </div>
-            </Col>
-          </Row>
-
-          {/* Customer & Vehicle Profiles */}
-          <Row className="g-4 mb-4 border-bottom pb-4">
-            <Col xs={12} md={6}>
-              <h6 className="fw-bold text-navy text-uppercase mb-2.5 d-flex align-items-center gap-2">
-                <FaUser size={13} /> Billed To (Customer):
-              </h6>
-              <div className="ps-3 border-start border-2 border-secondary border-opacity-25 small text-secondary">
-                <div className="fw-bold text-dark fs-6 mb-1">{invoice.customer?.fullName || jobCard.customer?.fullName || 'Not Provided'}</div>
-                <div><strong>Mobile:</strong> {invoice.customer?.mobileNumber || jobCard.customer?.mobileNumber || 'Not Provided'}</div>
-                <div><strong>Email:</strong> {invoice.customer?.emailAddress || jobCard.customer?.emailAddress || 'Not Provided'}</div>
-                {(invoice.customer?.address || jobCard.customer?.address) && (
-                  <div className="mt-1">
-                    {invoice.customer?.address || jobCard.customer?.address}, {invoice.customer?.city || jobCard.customer?.city}<br/>
-                    {invoice.customer?.state || jobCard.customer?.state} - {invoice.customer?.pincode || jobCard.customer?.pincode}
-                  </div>
-                )}
-              </div>
-            </Col>
-            
-            <Col xs={12} md={6}>
-              <h6 className="fw-bold text-navy text-uppercase mb-2.5 d-flex align-items-center gap-2">
-                <FaCar size={13} /> Vehicle Details:
-              </h6>
-              <div className="ps-3 border-start border-2 border-secondary border-opacity-25 small text-secondary">
-                <div className="fw-bold text-dark mb-1">REG NO: <span className="font-monospace text-primary">{invoice.vehicle?.vehicleNumber || jobCard.vehicle?.vehicleNumber || 'Not Available'}</span></div>
-                <div><strong>Brand & Model:</strong> {invoice.vehicle?.brand || jobCard.vehicle?.brand || ''} {invoice.vehicle?.model || jobCard.vehicle?.model || ''}</div>
-                <div><strong>Fuel Type:</strong> {invoice.vehicle?.fuelType || jobCard.vehicle?.fuelType || 'Not Provided'}</div>
-                <div><strong>Odometer:</strong> {invoice.odometerAtService || jobCard.odometerAtService || invoice.vehicle?.currentOdometerReading || jobCard.vehicle?.currentOdometerReading || 'Not Available'} km</div>
-              </div>
-            </Col>
-          </Row>
-
-          {/* Job Card description */}
-          <div className="mb-4 small">
-            <h6 className="fw-bold text-navy text-uppercase mb-2">Service Breakdown:</h6>
-            <div className="p-3 bg-light rounded text-secondary border">
-              <div><strong>Job Card No:</strong> {jobCard.jobNumber}</div>
-              <div><strong>Complaint:</strong> {jobCard.complaint}</div>
-              <div><strong>Mechanic:</strong> {jobCard.assignedMechanic?.fullName || 'N/A'}</div>
-              <div><strong>Service Completion Date:</strong> {jobCard.completionTime ? formatDateIST(jobCard.completionTime) : 'N/A'}</div>
-              {jobCard.workDescription && (
-                <div className="mt-1">
-                  <strong>Work Done:</strong> {jobCard.workDescription}
+          {/* Header Bar */}
+          <div className="d-flex justify-content-between align-items-start border-bottom pb-3 mb-3">
+            <div>
+              <div className="d-flex align-items-center gap-2 mb-1">
+                <div className="bg-orange text-white p-2 rounded d-flex align-items-center justify-content-center" style={{ width: '38px', height: '38px' }}>
+                  <FaCar size={20} />
                 </div>
-              )}
+                <div>
+                  <h3 className="fw-bold text-navy mb-0 text-uppercase" style={{ letterSpacing: '0.5px' }}>
+                    {garage.garageName || 'GARAGE ERP AUTO SERVICES'}
+                  </h3>
+                  <small className="text-muted fw-semibold">AUTHORIZED MULTI-BRAND AUTOMOTIVE SERVICE WORKSHOP</small>
+                </div>
+              </div>
+              <div className="text-secondary small mt-2" style={{ lineHeight: '1.4' }}>
+                <div>{garage.address || '123 Garage Lane, Industrial Area, Phase II'}</div>
+                <div>{garage.city || 'Mumbai'}, {garage.state || 'Maharashtra'} - {garage.pincode || '400011'}</div>
+                <div>Phone: <strong>{garage.phone || '+91 98765 43210'}</strong> &bull; Email: <strong>{garage.email || 'support@garageerp.com'}</strong></div>
+                <div><strong>GSTIN:</strong> <span className="font-monospace text-dark fw-bold">{garage.gstin || '29AAAAA0000A1Z5'}</span> &bull; <strong>State:</strong> {garage.state || 'Karnataka'}</div>
+              </div>
+            </div>
+
+            <div className="text-end">
+              <div className="badge bg-navy text-white text-uppercase px-3 py-1 mb-2 fs-6" style={{ letterSpacing: '1px' }}>
+                TAX INVOICE
+              </div>
+              <div className="small text-muted fw-bold text-uppercase mb-1" style={{ fontSize: '0.75rem' }}>
+                [ Original for Recipient ]
+              </div>
+              <div className="small text-secondary font-monospace border rounded p-2 bg-light text-start" style={{ minWidth: '220px' }}>
+                <div><strong>Invoice No:</strong> <span className="text-primary fw-bold">{invoice.invoiceNumber}</span></div>
+                <div><strong>Date:</strong> {formatDateIST(invoice.createdAt || invoice.invoiceDate)}</div>
+                <div><strong>Place of Supply:</strong> {placeOfSupply}</div>
+                <div><strong>Supply Type:</strong> {isInterState ? 'Inter-State (IGST)' : 'Intra-State (CGST+SGST)'}</div>
+                <div><strong>Reverse Charge:</strong> No</div>
+              </div>
             </div>
           </div>
 
-          {/* Labor / Services Table */}
-          <h6 className="fw-bold text-navy text-uppercase mb-2">1. Labor & Service Charges</h6>
-          <Table borderless className="align-middle mb-4 border rounded overflow-hidden small">
-            <thead className="table-light border-bottom text-muted">
-              <tr>
-                <th className="ps-3" style={{ width: '50px' }}>#</th>
-                <th>Service & Labor Description</th>
-                <th className="text-end" style={{ width: '150px' }}>Labour (₹)</th>
-                <th className="text-end" style={{ width: '150px' }}>Washing (₹)</th>
-                <th className="text-end pe-3" style={{ width: '150px' }}>Total (₹)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {jobCard?.servicesPerformed && jobCard.servicesPerformed.length > 0 ? (
-                jobCard.servicesPerformed.map((srv, idx) => (
-                  <tr key={idx} className="border-bottom">
-                    <td className="ps-3">{idx + 1}</td>
-                    <td>
-                      <div className="fw-bold text-dark">{srv.serviceName}</div>
-                      {(srv.isFreeService || invoice.isFreeService) && <small className="text-success fw-bold">Free Service Included</small>}
-                    </td>
-                    <td className="text-end">
-                      {invoice.isFreeService ? <span className="text-success fw-bold">FREE</span> : `₹${srv.labourCharge.toFixed(2)}`}
-                    </td>
-                    <td className="text-end">
-                      {invoice.isFreeService ? <span className="text-success fw-bold">FREE</span> : `₹${srv.washingCharge.toFixed(2)}`}
-                    </td>
-                    <td className="text-end pe-3 fw-bold text-dark">
-                      {invoice.isFreeService ? <span className="text-success fw-bold">FREE</span> : `₹${(srv.labourCharge + srv.washingCharge).toFixed(2)}`}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td className="ps-3">1</td>
-                  <td>
-                    <div className="fw-bold text-dark">General Repairs & Services</div>
-                    {invoice.isFreeService && <small className="text-success fw-bold">Free Service Included</small>}
-                  </td>
-                  <td className="text-end">
-                    {invoice.isFreeService ? <span className="text-success fw-bold">FREE</span> : '-'}
-                  </td>
-                  <td className="text-end">
-                    {invoice.isFreeService ? <span className="text-success fw-bold">FREE</span> : '-'}
-                  </td>
-                  <td className="text-end pe-3 fw-bold text-dark">
-                    {invoice.isFreeService ? <span className="text-success fw-bold">FREE</span> : `₹${invoice.totalLabour.toFixed(2)}`}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </Table>
-
-          {/* Spare Parts consumed */}
-          <h6 className="fw-bold text-navy text-uppercase mb-2">2. Automobile Spare Parts Consumed</h6>
-          {!jobCard.partsUsed || jobCard.partsUsed.length === 0 ? (
-            <div className="text-center py-3 bg-light text-muted small rounded mb-4 border">
-              No spare parts were replaced during this service.
-            </div>
-          ) : (
-            <Table borderless className="align-middle mb-4 border rounded overflow-hidden small table-hover">
-              <thead className="table-light border-bottom text-muted">
-                <tr>
-                  <th className="ps-3" style={{ width: '50px' }}>#</th>
-                  <th>Part Details (Code / Name)</th>
-                  <th>Manufacturer</th>
-                  <th>Unit Rate (₹)</th>
-                  <th className="text-center">Qty</th>
-                  <th>GST %</th>
-                  <th className="text-end">Tax Amt (₹)</th>
-                  <th className="text-end pe-3">Total (₹)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {jobCard.partsUsed.map((p, idx) => {
-                  const partExcl = p.sellingPrice * p.quantity;
-                  const partTax = partExcl * p.gstPercent / 100;
-                  const partTotal = partExcl + partTax;
-                  return (
-                    <tr key={idx} className="border-bottom">
-                      <td className="ps-3">{idx + 1}</td>
-                      <td>
-                        <div className="fw-bold text-dark">{p.part?.partName || 'Part Deleted'}</div>
-                        <div className="small font-monospace text-secondary">{p.part?.partNumber || 'PART-N/A'}</div>
-                      </td>
-                      <td>{p.part?.manufacturer || 'N/A'}</td>
-                      <td>₹{p.sellingPrice.toFixed(2)}</td>
-                      <td className="text-center fw-medium text-dark">{p.quantity}</td>
-                      <td>{p.gstPercent}%</td>
-                      <td>₹{partTax.toFixed(2)}</td>
-                      <td className="text-end pe-3 fw-bold text-dark">₹{partTotal.toFixed(2)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </Table>
-          )}
-
-          {/* Invoice Summary Box */}
-          <Row className="mt-4 pt-2">
-            <Col xs={12} md={6} className="mb-3 small">
-              <div className="p-3 bg-light rounded border text-muted mb-3">
-                <h6 className="fw-bold text-navy mb-2">Terms & Conditions:</h6>
-                <ol className="ps-3 mb-0" style={{ fontSize: '0.75rem' }}>
-                  <li>All payments must be made in full upon vehicle delivery.</li>
-                  <li>Parts warranty is subject to manufacturer terms. No warranty on electrical items.</li>
-                  <li>Vehicles are driven/tested at owners' risk.</li>
-                </ol>
-              </div>
-
-              {invoice.payments && invoice.payments.length > 0 && (
-                <div className="p-3 bg-white rounded border border-success">
-                  <h6 className="fw-bold text-success mb-2">Payment History</h6>
-                  <Table size="sm" borderless className="mb-0 small">
-                    <tbody>
-                      {invoice.payments.map((pay, i) => (
-                        <tr key={i} className="border-bottom">
-                          <td>{formatDateIST(pay.date)}</td>
-                          <td>{pay.method}</td>
-                          <td className="text-end fw-bold text-dark">₹{pay.amount.toFixed(2)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </Table>
+          {/* Customer & Vehicle Profiles (Dealership Grid) */}
+          <Row className="g-2 mb-3">
+            {/* Box A: Customer Details */}
+            <Col xs={12} md={6}>
+              <div className="border rounded h-100 p-2.5 bg-light-subtle">
+                <div className="d-flex align-items-center gap-1.5 text-navy fw-bold text-uppercase border-bottom pb-1 mb-1.5 small">
+                  <FaUser size={12} /> Billed To / Customer Details
                 </div>
-              )}
+                <div className="small text-secondary" style={{ lineHeight: '1.45' }}>
+                  <div className="fw-bold text-dark fs-6">{customer.fullName || 'Valued Customer'}</div>
+                  <div><strong>Mobile:</strong> {customer.mobileNumber || 'N/A'}</div>
+                  <div><strong>Email:</strong> {customer.emailAddress || 'N/A'}</div>
+                  {(customer.address || customer.city) && (
+                    <div><strong>Address:</strong> {customer.address ? `${customer.address}, ` : ''}{customer.city ? `${customer.city}, ` : ''}{customer.state || ''} {customer.pincode ? `- ${customer.pincode}` : ''}</div>
+                  )}
+                  <div><strong>Customer GSTIN:</strong> <span className="font-monospace fw-bold text-dark">{customer.gstin ? customer.gstin : 'URP (Unregistered Person)'}</span></div>
+                  <div><strong>State of Supply:</strong> {customer.state || garage.state || 'Karnataka'}</div>
+                </div>
+              </div>
             </Col>
 
-            <Col xs={12} md={6} className="ms-auto small">
-              <div className="bg-light p-3 rounded border">
-                {invoice.isFreeService && (
-                  <div className="alert alert-success fw-bold text-center py-2 mb-3 small border-success">
-                    ★ FREE SERVICE {invoice.freeServiceNumber} OF 3 – Labour & Washing ★
-                  </div>
-                )}
-                
-                <div className="d-flex justify-content-between mb-2 text-secondary">
-                  <span>Labour:</span>
-                  <span className="fw-medium text-dark">
-                    {invoice.isFreeService ? 'FREE (₹0.00)' : `₹${invoice.totalLabour.toFixed(2)}`}
-                  </span>
+            {/* Box B: Vehicle & Job Card Details */}
+            <Col xs={12} md={6}>
+              <div className="border rounded h-100 p-2.5 bg-light-subtle">
+                <div className="d-flex align-items-center gap-1.5 text-navy fw-bold text-uppercase border-bottom pb-1 mb-1.5 small">
+                  <FaTools size={12} /> Vehicle & Workshop Job Card
                 </div>
-
-                <div className="d-flex justify-content-between mb-2 text-secondary">
-                  <span>Washing:</span>
-                  <span className="fw-medium text-dark">
-                    {invoice.isFreeService ? 'FREE (₹0.00)' : `₹${invoice.totalWashing.toFixed(2)}`}
-                  </span>
-                </div>
-                
-                <div className="d-flex justify-content-between mb-2 text-secondary">
-                  <span>Spare Parts:</span>
-                  <span className="fw-medium text-dark">₹{invoice.totalParts.toFixed(2)}</span>
-                </div>
-
-                <div className="d-flex justify-content-between mb-2 text-secondary">
-                  <span>GST:</span>
-                  <span className="fw-medium text-dark">₹{invoice.taxAmount.toFixed(2)}</span>
-                </div>
-
-                {invoice.discount > 0 && (
-                  <div className="d-flex justify-content-between mb-2 text-danger">
-                    <span>Discount:</span>
-                    <span className="fw-medium">- ₹{invoice.discount.toFixed(2)}</span>
-                  </div>
-                )}
-
-                <div className="d-flex justify-content-between mb-2 fs-6 fw-bold text-dark border-top pt-2">
-                  <span>Grand Total:</span>
-                  <span>₹{invoice.grandTotal.toFixed(2)}</span>
-                </div>
-
-                <div className="d-flex justify-content-between mb-2 fs-6 text-success border-top pt-2">
-                  <span>Amount Paid:</span>
-                  <span>₹{invoice.amountPaid.toFixed(2)}</span>
-                </div>
-
-                <div className="d-flex justify-content-between fs-5 fw-bold text-danger border-top pt-2">
-                  <span>Balance Due:</span>
-                  <span style={{ fontSize: '1.4rem' }}>₹{invoice.balanceDue.toFixed(2)}</span>
+                <div className="small text-secondary" style={{ lineHeight: '1.45' }}>
+                  <Row className="g-1">
+                    <Col xs={6}><strong>Job Card No:</strong> <span className="font-monospace text-primary fw-bold">{jobCard.jobNumber || 'N/A'}</span></Col>
+                    <Col xs={6}><strong>Reg No:</strong> <span className="font-monospace fw-bold text-dark">{vehicle.vehicleNumber || 'N/A'}</span></Col>
+                    <Col xs={6}><strong>Make & Model:</strong> {vehicle.brand || ''} {vehicle.model || ''}</Col>
+                    <Col xs={6}><strong>Fuel / Trans:</strong> {vehicle.fuelType || 'Petrol'} / {vehicle.transmission || 'Manual'}</Col>
+                    <Col xs={6}><strong>Engine No:</strong> <span className="font-monospace">{vehicle.engineNumber || 'N/A'}</span></Col>
+                    <Col xs={6}><strong>Chassis No:</strong> <span className="font-monospace">{vehicle.chassisNumber || 'N/A'}</span></Col>
+                    <Col xs={6}><strong>Odometer:</strong> {vehicle.currentOdometerReading ? `${vehicle.currentOdometerReading.toLocaleString('en-IN')} km` : 'N/A'}</Col>
+                    <Col xs={6}><strong>Service Type:</strong> {jobCard.serviceType || 'General Service'}</Col>
+                    <Col xs={6}><strong>Mechanic:</strong> {jobCard.assignedMechanic?.fullName || 'Assigned Bay'}</Col>
+                    <Col xs={6}><strong>Service Advisor:</strong> {jobCard.serviceRequest?.serviceAdvisor?.fullName || 'Workshop Desk'}</Col>
+                    <Col xs={12}><strong>Next Service Due:</strong> <span className="text-dark fw-semibold">{nextServiceDate} or {nextOdoDue}</span></Col>
+                  </Row>
                 </div>
               </div>
             </Col>
           </Row>
 
-          {/* Print Footer */}
-          <div className="text-center mt-5 pt-4 border-top text-muted small" style={{ fontSize: '0.8rem' }}>
-            <p className="mb-1"><strong>Thank you for choosing Garage ERP Auto Care!</strong></p>
-            <p className="mb-0">This is a system-generated electronic tax invoice and does not require a physical signature.</p>
+          {/* Free Service Notification Alert */}
+          {invoice.isFreeService && (
+            <div className="alert alert-success d-flex align-items-center justify-content-between py-2 px-3 mb-3 border-success small">
+              <div className="d-flex align-items-center gap-2">
+                <FaCheckCircle className="text-success fs-5" />
+                <div>
+                  <strong>FREE SERVICE {invoice.freeServiceNumber ? `${invoice.freeServiceNumber} OF 3` : 'QUALIFIED'}</strong>: Labour charges and washing charges are 100% waived off. Spare parts consumed remain chargeable.
+                </div>
+              </div>
+              <span className="badge bg-success text-white">Free Labour Active</span>
+            </div>
+          )}
+
+          {/* TABLE 1: AUTOMOBILE SPARE PARTS */}
+          <div className="mb-3">
+            <div className="d-flex justify-content-between align-items-center bg-light border border-bottom-0 px-3 py-1.5 rounded-top">
+              <span className="fw-bold text-navy text-uppercase small">1. Automobile Spare Parts & Consumables</span>
+              <span className="small text-muted">HSN Code 8708</span>
+            </div>
+            {!jobCard.partsUsed || jobCard.partsUsed.length === 0 ? (
+              <div className="text-center py-2.5 bg-white border text-muted small">
+                No spare parts or consumables were replaced during this service.
+              </div>
+            ) : (
+              <Table bordered size="sm" className="align-middle mb-0 small text-dark">
+                <thead className="table-light text-center" style={{ fontSize: '0.75rem' }}>
+                  <tr>
+                    <th style={{ width: '35px' }}>#</th>
+                    <th className="text-start">Part Description</th>
+                    <th>Part Number</th>
+                    <th>HSN</th>
+                    <th style={{ width: '45px' }}>Qty</th>
+                    <th className="text-end">Rate (₹)</th>
+                    <th className="text-end">Gross (₹)</th>
+                    <th className="text-end">Taxable (₹)</th>
+                    {isInterState ? (
+                      <th className="text-end" style={{ width: '90px' }}>IGST (₹)</th>
+                    ) : (
+                      <>
+                        <th className="text-end" style={{ width: '80px' }}>CGST (₹)</th>
+                        <th className="text-end" style={{ width: '80px' }}>SGST (₹)</th>
+                      </>
+                    )}
+                    <th className="text-end" style={{ width: '90px' }}>Total (₹)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {jobCard.partsUsed.map((p, idx) => {
+                    const qty = Number(p.quantity) || 1;
+                    const rate = Number(p.sellingPrice) || 0;
+                    const gross = qty * rate;
+                    const taxable = gross;
+                    const gstRate = p.gstPercent !== undefined ? Number(p.gstPercent) : defaultGstRate;
+                    const cgst = isInterState ? 0 : taxable * ((gstRate / 2) / 100);
+                    const sgst = isInterState ? 0 : taxable * ((gstRate / 2) / 100);
+                    const igst = isInterState ? taxable * (gstRate / 100) : 0;
+                    const total = taxable + cgst + sgst + igst;
+
+                    return (
+                      <tr key={idx}>
+                        <td className="text-center">{idx + 1}</td>
+                        <td>
+                          <div className="fw-semibold text-dark">{p.part?.partName || 'Spare Part'}</div>
+                          {p.part?.manufacturer && <small className="text-muted">{p.part.manufacturer}</small>}
+                        </td>
+                        <td className="text-center font-monospace text-secondary">{p.part?.partNumber || 'PART-N/A'}</td>
+                        <td className="text-center font-monospace text-secondary">{p.part?.hsnCode || '8708'}</td>
+                        <td className="text-center fw-bold">{qty}</td>
+                        <td className="text-end">{formatINR(rate, false)}</td>
+                        <td className="text-end">{formatINR(gross, false)}</td>
+                        <td className="text-end fw-semibold">{formatINR(taxable, false)}</td>
+                        {isInterState ? (
+                          <td className="text-end">
+                            <div>{formatINR(igst, false)}</div>
+                            <small className="text-muted">({gstRate}%)</small>
+                          </td>
+                        ) : (
+                          <>
+                            <td className="text-end">
+                              <div>{formatINR(cgst, false)}</div>
+                              <small className="text-muted">({gstRate / 2}%)</small>
+                            </td>
+                            <td className="text-end">
+                              <div>{formatINR(sgst, false)}</div>
+                              <small className="text-muted">({gstRate / 2}%)</small>
+                            </td>
+                          </>
+                        )}
+                        <td className="text-end pe-2 fw-bold text-dark">{formatINR(total, false)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot className="table-light fw-bold">
+                  <tr>
+                    <td colSpan={7} className="text-end text-uppercase pe-2">Subtotal Parts:</td>
+                    <td className="text-end">{formatINR(taxBreakup.partsTaxable, false)}</td>
+                    {isInterState ? (
+                      <td className="text-end">{formatINR(taxBreakup.partsIgst, false)}</td>
+                    ) : (
+                      <>
+                        <td className="text-end">{formatINR(taxBreakup.partsCgst, false)}</td>
+                        <td className="text-end">{formatINR(taxBreakup.partsSgst, false)}</td>
+                      </>
+                    )}
+                    <td className="text-end pe-2 text-primary">{formatINR(taxBreakup.partsTotal, false)}</td>
+                  </tr>
+                </tfoot>
+              </Table>
+            )}
+          </div>
+
+          {/* TABLE 2: LABOUR & SERVICE CHARGES */}
+          <div className="mb-3">
+            <div className="d-flex justify-content-between align-items-center bg-light border border-bottom-0 px-3 py-1.5 rounded-top">
+              <span className="fw-bold text-navy text-uppercase small">2. Labour & Automotive Service Charges</span>
+              <span className="small text-muted">SAC Code 998729 (Maintenance & Repair Services)</span>
+            </div>
+            <Table bordered size="sm" className="align-middle mb-0 small text-dark">
+              <thead className="table-light text-center" style={{ fontSize: '0.75rem' }}>
+                <tr>
+                  <th style={{ width: '35px' }}>#</th>
+                  <th className="text-start">Service / Labour Description</th>
+                  <th>SAC</th>
+                  <th style={{ width: '45px' }}>Qty</th>
+                  <th className="text-end">Rate (₹)</th>
+                  <th className="text-end">Gross (₹)</th>
+                  <th className="text-end">Taxable (₹)</th>
+                  {isInterState ? (
+                    <th className="text-end" style={{ width: '90px' }}>IGST (₹)</th>
+                  ) : (
+                    <>
+                      <th className="text-end" style={{ width: '80px' }}>CGST (₹)</th>
+                      <th className="text-end" style={{ width: '80px' }}>SGST (₹)</th>
+                    </>
+                  )}
+                  <th className="text-end" style={{ width: '90px' }}>Total (₹)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {jobCard.servicesPerformed && jobCard.servicesPerformed.length > 0 ? (
+                  jobCard.servicesPerformed.map((srv, idx) => {
+                    const gross = (srv.labourCharge || 0) + (srv.washingCharge || 0);
+                    const isWaived = invoice.isFreeService || srv.isFreeService;
+                    const taxable = isWaived ? 0 : gross;
+                    const cgst = isInterState || isWaived ? 0 : taxable * ((defaultGstRate / 2) / 100);
+                    const sgst = isInterState || isWaived ? 0 : taxable * ((defaultGstRate / 2) / 100);
+                    const igst = !isInterState || isWaived ? 0 : taxable * (defaultGstRate / 100);
+                    const total = taxable + cgst + sgst + igst;
+
+                    return (
+                      <tr key={idx}>
+                        <td className="text-center">{idx + 1}</td>
+                        <td>
+                          <div className="fw-semibold text-dark">{srv.serviceName}</div>
+                          {isWaived && (
+                            <span className="badge bg-success-subtle text-success border border-success px-1.5 py-0.5" style={{ fontSize: '0.7rem' }}>
+                              Free Service Included
+                            </span>
+                          )}
+                        </td>
+                        <td className="text-center font-monospace text-secondary">998729</td>
+                        <td className="text-center">1</td>
+                        <td className="text-end">{isWaived ? '₹0.00' : formatINR(gross, false)}</td>
+                        <td className="text-end">{isWaived ? '₹0.00' : formatINR(gross, false)}</td>
+                        <td className="text-end fw-semibold">{isWaived ? '₹0.00' : formatINR(taxable, false)}</td>
+                        {isInterState ? (
+                          <td className="text-end">
+                            <div>{isWaived ? '₹0.00' : formatINR(igst, false)}</div>
+                            {!isWaived && <small className="text-muted">({defaultGstRate}%)</small>}
+                          </td>
+                        ) : (
+                          <>
+                            <td className="text-end">
+                              <div>{isWaived ? '₹0.00' : formatINR(cgst, false)}</div>
+                              {!isWaived && <small className="text-muted">({defaultGstRate / 2}%)</small>}
+                            </td>
+                            <td className="text-end">
+                              <div>{isWaived ? '₹0.00' : formatINR(sgst, false)}</div>
+                              {!isWaived && <small className="text-muted">({defaultGstRate / 2}%)</small>}
+                            </td>
+                          </>
+                        )}
+                        <td className="text-end pe-2 fw-bold text-dark">{isWaived ? '₹0.00' : formatINR(total, false)}</td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td className="text-center">1</td>
+                    <td>
+                      <div className="fw-semibold text-dark">General Repairs & Inspection Labour</div>
+                      {invoice.isFreeService && (
+                        <span className="badge bg-success-subtle text-success border border-success px-1.5 py-0.5" style={{ fontSize: '0.7rem' }}>
+                          Free Service Included
+                        </span>
+                      )}
+                    </td>
+                    <td className="text-center font-monospace text-secondary">998729</td>
+                    <td className="text-center">1</td>
+                    <td className="text-end">{invoice.isFreeService ? '₹0.00' : formatINR((invoice.totalLabour || 0) + (invoice.totalWashing || 0), false)}</td>
+                    <td className="text-end">{invoice.isFreeService ? '₹0.00' : formatINR((invoice.totalLabour || 0) + (invoice.totalWashing || 0), false)}</td>
+                    <td className="text-end fw-semibold">{invoice.isFreeService ? '₹0.00' : formatINR(taxBreakup.servicesTaxable, false)}</td>
+                    {isInterState ? (
+                      <td className="text-end">{invoice.isFreeService ? '₹0.00' : formatINR(taxBreakup.servicesIgst, false)}</td>
+                    ) : (
+                      <>
+                        <td className="text-end">{invoice.isFreeService ? '₹0.00' : formatINR(taxBreakup.servicesCgst, false)}</td>
+                        <td className="text-end">{invoice.isFreeService ? '₹0.00' : formatINR(taxBreakup.servicesSgst, false)}</td>
+                      </>
+                    )}
+                    <td className="text-end pe-2 fw-bold text-dark">{invoice.isFreeService ? '₹0.00' : formatINR(taxBreakup.servicesTotal, false)}</td>
+                  </tr>
+                )}
+              </tbody>
+              <tfoot className="table-light fw-bold">
+                <tr>
+                  <td colSpan={7} className="text-end text-uppercase pe-2">Subtotal Services:</td>
+                  <td className="text-end">{formatINR(taxBreakup.servicesTaxable, false)}</td>
+                  {isInterState ? (
+                    <td className="text-end">{formatINR(taxBreakup.servicesIgst, false)}</td>
+                  ) : (
+                    <>
+                      <td className="text-end">{formatINR(taxBreakup.servicesCgst, false)}</td>
+                      <td className="text-end">{formatINR(taxBreakup.servicesSgst, false)}</td>
+                    </>
+                  )}
+                  <td className="text-end pe-2 text-primary">{formatINR(taxBreakup.servicesTotal, false)}</td>
+                </tr>
+              </tfoot>
+            </Table>
+          </div>
+
+          {/* COMPREHENSIVE GST SUMMARY MATRIX & TOTAL CALCULATION */}
+          <Row className="g-2 mb-3">
+            {/* 3-Column GST Tax Summary Matrix */}
+            <Col xs={12} md={7}>
+              <div className="border rounded overflow-hidden">
+                <div className="bg-light px-3 py-1.5 fw-bold text-navy text-uppercase border-bottom small">
+                  GST Tax Summary Matrix
+                </div>
+                <Table size="sm" bordered className="mb-0 small text-dark">
+                  <thead className="table-light text-center" style={{ fontSize: '0.75rem' }}>
+                    <tr>
+                      <th className="text-start">Particulars</th>
+                      <th style={{ width: '100px' }}>Parts (₹)</th>
+                      <th style={{ width: '100px' }}>Services (₹)</th>
+                      <th style={{ width: '110px' }} className="text-end pe-2">Total (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Total Taxable Value</td>
+                      <td className="text-end">{formatINR(taxBreakup.partsTaxable, false)}</td>
+                      <td className="text-end">{formatINR(taxBreakup.servicesTaxable, false)}</td>
+                      <td className="text-end pe-2 fw-semibold">{formatINR(taxBreakup.totalTaxable, false)}</td>
+                    </tr>
+                    {!isInterState ? (
+                      <>
+                        <tr>
+                          <td>Central GST (CGST)</td>
+                          <td className="text-end">{formatINR(taxBreakup.partsCgst, false)}</td>
+                          <td className="text-end">{formatINR(taxBreakup.servicesCgst, false)}</td>
+                          <td className="text-end pe-2">{formatINR(taxBreakup.totalCgst, false)}</td>
+                        </tr>
+                        <tr>
+                          <td>State GST (SGST)</td>
+                          <td className="text-end">{formatINR(taxBreakup.partsSgst, false)}</td>
+                          <td className="text-end">{formatINR(taxBreakup.servicesSgst, false)}</td>
+                          <td className="text-end pe-2">{formatINR(taxBreakup.totalSgst, false)}</td>
+                        </tr>
+                      </>
+                    ) : (
+                      <tr>
+                        <td>Integrated GST (IGST)</td>
+                        <td className="text-end">{formatINR(taxBreakup.partsIgst, false)}</td>
+                        <td className="text-end">{formatINR(taxBreakup.servicesIgst, false)}</td>
+                        <td className="text-end pe-2">{formatINR(taxBreakup.totalIgst, false)}</td>
+                      </tr>
+                    )}
+                    <tr>
+                      <td>Cess</td>
+                      <td className="text-end">0.00</td>
+                      <td className="text-end">0.00</td>
+                      <td className="text-end pe-2">0.00</td>
+                    </tr>
+                    {invoice.discount > 0 && (
+                      <tr className="text-danger">
+                        <td>Discount Applied</td>
+                        <td className="text-end">-</td>
+                        <td className="text-end">-</td>
+                        <td className="text-end pe-2">- {formatINR(invoice.discount, false)}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                  <tfoot className="table-light fw-bold">
+                    <tr>
+                      <td className="text-uppercase">Total Invoice Value</td>
+                      <td className="text-end">{formatINR(taxBreakup.partsTotal, false)}</td>
+                      <td className="text-end">{formatINR(taxBreakup.servicesTotal, false)}</td>
+                      <td className="text-end pe-2 text-primary">{formatINR(invoice.grandTotal, false)}</td>
+                    </tr>
+                  </tfoot>
+                </Table>
+              </div>
+            </Col>
+
+            {/* Financial Totals & Settlement Box */}
+            <Col xs={12} md={5}>
+              <div className="border rounded p-3 bg-light h-100 d-flex flex-column justify-content-between small">
+                <div>
+                  <div className="d-flex justify-content-between mb-1.5 text-secondary">
+                    <span>Taxable Amount:</span>
+                    <span className="fw-semibold text-dark">{formatINR(taxBreakup.totalTaxable)}</span>
+                  </div>
+                  <div className="d-flex justify-content-between mb-1.5 text-secondary">
+                    <span>Total GST Amount:</span>
+                    <span className="fw-semibold text-dark">{formatINR(invoice.taxAmount)}</span>
+                  </div>
+                  {invoice.discount > 0 && (
+                    <div className="d-flex justify-content-between mb-1.5 text-danger">
+                      <span>Discount:</span>
+                      <span className="fw-semibold">- {formatINR(invoice.discount)}</span>
+                    </div>
+                  )}
+                  <div className="d-flex justify-content-between py-2 border-top border-bottom my-1.5 fs-6 fw-bold text-dark">
+                    <span>Invoice Grand Total:</span>
+                    <span className="text-primary">{formatINR(invoice.grandTotal)}</span>
+                  </div>
+                  <div className="d-flex justify-content-between mb-1.5 text-success">
+                    <span>Amount Paid:</span>
+                    <span className="fw-bold">{formatINR(invoice.amountPaid)}</span>
+                  </div>
+                  <div className="d-flex justify-content-between fs-6 fw-bold text-danger border-top pt-1.5">
+                    <span>Balance Due:</span>
+                    <span className="fs-5">{formatINR(invoice.balanceDue)}</span>
+                  </div>
+                </div>
+
+                {/* Latest Payment Reference */}
+                {lastPayment && (
+                  <div className="mt-2 pt-2 border-top text-muted" style={{ fontSize: '0.75rem' }}>
+                    <div><strong>Last Payment:</strong> {formatINR(lastPayment.amount)} via {lastPayment.method} ({formatDateIST(lastPayment.date)})</div>
+                    {lastPayment.transactionId && <div><strong>Txn Ref:</strong> <span className="font-monospace">{lastPayment.transactionId}</span></div>}
+                  </div>
+                )}
+              </div>
+            </Col>
+          </Row>
+
+          {/* Amount In Words Banner */}
+          <div className="border rounded p-2.5 mb-3 bg-light-subtle d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+              <span className="text-muted small fw-bold text-uppercase me-2">Amount Chargeable (in words):</span>
+              <strong className="text-navy">{amountInWords}</strong>
+            </div>
+            <div className="text-end">
+              <span className="text-muted small fw-bold text-uppercase me-2">Net Payable:</span>
+              <span className="fs-5 fw-bold text-primary">{formatINR(invoice.grandTotal)}</span>
+            </div>
+          </div>
+
+          {/* Payment History (if any) */}
+          {invoice.payments && invoice.payments.length > 0 && (
+            <div className="mb-3">
+              <div className="bg-light px-3 py-1 border border-bottom-0 rounded-top fw-bold text-navy text-uppercase small">
+                Payment & Settlement Records
+              </div>
+              <Table size="sm" bordered className="mb-0 small text-dark">
+                <thead className="table-light text-center" style={{ fontSize: '0.75rem' }}>
+                  <tr>
+                    <th>#</th>
+                    <th>Date & Time</th>
+                    <th>Payment Mode</th>
+                    <th>Transaction Reference / Gateway ID</th>
+                    <th className="text-end pe-2">Amount Paid (₹)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoice.payments.map((p, i) => (
+                    <tr key={i}>
+                      <td className="text-center">{i + 1}</td>
+                      <td className="text-center">{formatDateIST(p.date)}</td>
+                      <td className="text-center"><Badge bg="secondary">{p.method}</Badge></td>
+                      <td className="font-monospace text-center">{p.transactionId || p.razorpayPaymentId || '-'}</td>
+                      <td className="text-end pe-2 fw-bold text-success">{formatINR(p.amount, false)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </div>
+          )}
+
+          {/* Terms & Conditions & Signatures Row */}
+          <Row className="g-3 mt-1 pt-2 border-top">
+            <Col xs={12} md={7}>
+              <div className="border rounded p-2.5 bg-light h-100 text-muted small" style={{ fontSize: '0.72rem', lineHeight: '1.4' }}>
+                <div className="fw-bold text-navy text-uppercase mb-1">Terms & Conditions:</div>
+                <ol className="ps-3 mb-0">
+                  <li>Goods once sold will not be taken back or exchanged unless authorized under manufacturer warranty terms.</li>
+                  <li>Vehicles are driven, tested, and stored at vehicle owner's sole risk and responsibility.</li>
+                  <li>Warranty on replaced spare parts is strictly subject to OEM manufacturer policy. No warranty on electrical items.</li>
+                  <li>All payments are due immediately upon delivery of the vehicle.</li>
+                  <li>All legal disputes are subject to local garage workshop jurisdiction.</li>
+                </ol>
+              </div>
+            </Col>
+
+            <Col xs={12} md={5}>
+              <div className="border rounded p-2.5 h-100 d-flex flex-column justify-content-between text-center bg-light">
+                <div className="text-end small text-muted">
+                  For <strong>{garage.garageName || 'GARAGE ERP AUTO SERVICES'}</strong>
+                </div>
+                <div className="my-3 py-2 text-muted font-monospace" style={{ letterSpacing: '1px', fontSize: '0.75rem' }}>
+                  [ DEALERSHIP OFFICIAL STAMP ]
+                </div>
+                <div className="d-flex justify-content-between align-items-end pt-2 border-top small text-secondary">
+                  <div>Customer's Signature</div>
+                  <div>Authorized Signatory</div>
+                </div>
+              </div>
+            </Col>
+          </Row>
+
+          {/* Bottom Electronic Verification Notice */}
+          <div className="text-center mt-3 pt-2 text-muted" style={{ fontSize: '0.7rem' }}>
+            <p className="mb-0">This is a computer-generated Tax Invoice generated by Garage ERP under Section 31 of the CGST Act, 2017.</p>
           </div>
 
         </div>
       </Card>
-      
-      {/* Styles for print output */}
+
+      {/* Print Optimization Styles */}
       <style>{`
         @media print {
+          @page {
+            size: A4 portrait;
+            margin: 10mm;
+          }
           body {
             background: white !important;
             color: black !important;
-            margin: 0;
-            padding: 0;
+            font-size: 11px !important;
+            margin: 0 !important;
+            padding: 0 !important;
           }
-          .sidebar, .navbar, .no-print, .toast-container {
+          .sidebar, .navbar, .no-print, .toast-container, button, .btn {
             display: none !important;
           }
           .main-content {
@@ -506,34 +817,53 @@ const InvoiceDetails = () => {
             width: 100% !important;
           }
           .invoice-container {
+            border: 1px solid #000 !important;
             box-shadow: none !important;
-            border: none !important;
-            padding: 0 !important;
+            padding: 15px !important;
             margin: 0 !important;
-            background: transparent !important;
-          }
-          .invoice-print-area {
-            border: none !important;
+            max-width: 100% !important;
             width: 100% !important;
           }
+          .invoice-print-area {
+            width: 100% !important;
+          }
+          .table {
+            page-break-inside: auto;
+          }
+          tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+          }
+          thead {
+            display: table-header-group;
+          }
+          tfoot {
+            display: table-footer-group;
+          }
           .table-light {
-            background-color: #f8f9fa !important;
+            background-color: #f0f0f0 !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
+          }
+          .badge {
+            border: 1px solid #333 !important;
+            color: #000 !important;
+            background: transparent !important;
           }
         }
       `}</style>
       
+      {/* Payment Modal */}
       <Modal show={showPayModal} onHide={() => setShowPayModal(false)} centered>
         <Modal.Header closeButton className="bg-primary text-white">
           <Modal.Title className="fw-bold fs-5">Make Payment</Modal.Title>
         </Modal.Header>
         <Form onSubmit={handlePaySubmit}>
           <Modal.Body className="p-4">
-            <div className="alert alert-info p-3 mb-4 rounded border-info text-dark">
-              <div className="small">Invoice Number: <strong>{invoice.invoiceNumber}</strong></div>
-              <div className="small">Grand Total: <strong>₹{invoice.grandTotal.toFixed(2)}</strong></div>
-              <div className="small text-danger fw-bold">Balance Due: ₹{invoice.balanceDue.toFixed(2)}</div>
+            <div className="alert alert-info p-3 mb-4 rounded border-info text-dark small">
+              <div>Invoice Number: <strong>{invoice.invoiceNumber}</strong></div>
+              <div>Grand Total: <strong>{formatINR(invoice.grandTotal)}</strong></div>
+              <div className="text-danger fw-bold mt-1">Balance Due: {formatINR(invoice.balanceDue)}</div>
             </div>
 
             <Form.Group className="mb-3">
