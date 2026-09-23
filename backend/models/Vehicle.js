@@ -47,6 +47,7 @@ const vehicleSchema = new mongoose.Schema({
     type: String,
     maxLength: [50, 'Insurance number cannot exceed 50 characters'],
     trim: true,
+    uppercase: true,
   },
   insuranceStartDate: {
     type: Date,
@@ -58,11 +59,15 @@ const vehicleSchema = new mongoose.Schema({
     type: Date
   },
   engineNumber: {
-    type: String
+    type: String,
+    trim: true,
+    uppercase: true,
   },
   chassisNumber: {
     type: String,
-    maxLength: [17, 'Chassis number cannot exceed 17 characters']
+    maxLength: [17, 'Chassis number cannot exceed 17 characters'],
+    trim: true,
+    uppercase: true,
   },
   currentOdometerReading: {
     type: Number,
@@ -94,6 +99,44 @@ const vehicleSchema = new mongoose.Schema({
   }]
 }, {
   timestamps: true
+});
+
+// Partial unique indexes for optional identification numbers (non-empty strings only)
+vehicleSchema.index(
+  { chassisNumber: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { chassisNumber: { $type: 'string', $gt: '' } },
+  }
+);
+
+vehicleSchema.index(
+  { engineNumber: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { engineNumber: { $type: 'string', $gt: '' } },
+  }
+);
+
+vehicleSchema.index(
+  { insuranceNumber: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { insuranceNumber: { $type: 'string', $gt: '' } },
+  }
+);
+
+// Pre-save hook: ensure blank strings are converted to undefined
+vehicleSchema.pre('save', function () {
+  if (this.chassisNumber !== undefined && (this.chassisNumber === null || (typeof this.chassisNumber === 'string' && this.chassisNumber.trim() === ''))) {
+    this.chassisNumber = undefined;
+  }
+  if (this.engineNumber !== undefined && (this.engineNumber === null || (typeof this.engineNumber === 'string' && this.engineNumber.trim() === ''))) {
+    this.engineNumber = undefined;
+  }
+  if (this.insuranceNumber !== undefined && (this.insuranceNumber === null || (typeof this.insuranceNumber === 'string' && this.insuranceNumber.trim() === ''))) {
+    this.insuranceNumber = undefined;
+  }
 });
 
 const Vehicle = mongoose.model('Vehicle', vehicleSchema);

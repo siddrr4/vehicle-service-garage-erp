@@ -9,6 +9,264 @@ import {
   notifyAdminsAndAdvisors,
 } from '../services/notificationService.js';
 
+// State GST Codes mapping
+export const STATE_GST_CODES = {
+  'jammu and kashmir': '01',
+  'himachal pradesh': '02',
+  'punjab': '03',
+  'chandigarh': '04',
+  'uttarakhand': '05',
+  'haryana': '06',
+  'delhi': '07',
+  'rajasthan': '08',
+  'uttar pradesh': '09',
+  'bihar': '10',
+  'sikkim': '11',
+  'arunachal pradesh': '12',
+  'nagaland': '13',
+  'manipur': '14',
+  'mizoram': '15',
+  'tripura': '16',
+  'meghalaya': '17',
+  'assam': '18',
+  'west bengal': '19',
+  'jharkhand': '20',
+  'odisha': '21',
+  'chhattisgarh': '22',
+  'madhya pradesh': '23',
+  'gujarat': '24',
+  'daman and diu': '25',
+  'dadra and nagar haveli': '26',
+  'maharashtra': '27',
+  'andhra pradesh': '28',
+  'karnataka': '29',
+  'goa': '30',
+  'lakshadweep': '31',
+  'kerala': '32',
+  'tamil nadu': '33',
+  'puducherry': '34',
+  'andaman and nicobar islands': '35',
+  'telangana': '36',
+  'andhra pradesh (new)': '37',
+  'ladakh': '38'
+};
+
+export const getStateCode = (stateName) => {
+  if (!stateName) return '';
+  const normalized = stateName.trim().toLowerCase();
+  return STATE_GST_CODES[normalized] || '';
+};
+
+// Convert number to Indian Currency Words (INR)
+export function convertNumberToWordsINR(amount) {
+  if (amount === undefined || amount === null || isNaN(amount)) return 'Rupees Zero Only';
+  const num = Math.round(Number(amount) * 100) / 100;
+  if (num === 0) return 'Rupees Zero Only';
+
+  const ones = [
+    '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+    'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+    'Seventeen', 'Eighteen', 'Nineteen'
+  ];
+  const tens = [
+    '', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'
+  ];
+
+  function convertTwoDigits(n) {
+    if (n < 20) return ones[n];
+    const t = Math.floor(n / 10);
+    const o = n % 10;
+    return tens[t] + (o > 0 ? '-' + ones[o] : '');
+  }
+
+  function convertThreeDigits(n) {
+    const h = Math.floor(n / 100);
+    const rest = n % 100;
+    let str = '';
+    if (h > 0) {
+      str += ones[h] + ' Hundred';
+      if (rest > 0) str += ' ';
+    }
+    if (rest > 0) {
+      str += convertTwoDigits(rest);
+    }
+    return str;
+  }
+
+  const [rupeePartStr, paisePartStr] = num.toFixed(2).split('.');
+  let rupeePart = parseInt(rupeePartStr, 10);
+  const paisePart = parseInt(paisePartStr, 10);
+
+  let words = '';
+
+  const crore = Math.floor(rupeePart / 10000000);
+  rupeePart %= 10000000;
+
+  const lakh = Math.floor(rupeePart / 100000);
+  rupeePart %= 100000;
+
+  const thousand = Math.floor(rupeePart / 1000);
+  rupeePart %= 1000;
+
+  const remainder = rupeePart;
+
+  if (crore > 0) {
+    words += (words ? ' ' : '') + convertThreeDigits(crore) + ' Crore';
+  }
+  if (lakh > 0) {
+    words += (words ? ' ' : '') + convertThreeDigits(lakh) + ' Lakh';
+  }
+  if (thousand > 0) {
+    words += (words ? ' ' : '') + convertThreeDigits(thousand) + ' Thousand';
+  }
+  if (remainder > 0) {
+    words += (words ? ' ' : '') + convertThreeDigits(remainder);
+  }
+
+  if (!words) {
+    words = 'Zero';
+  }
+
+  let finalStr = `Rupees ${words.trim()}`;
+  if (paisePart > 0) {
+    finalStr += ` and ${convertTwoDigits(paisePart)} Paise`;
+  }
+  finalStr += ' Only';
+  return finalStr;
+}
+
+// Compute comprehensive automotive GST breakdown for parts and services
+export function computeInvoiceTaxBreakdown({ jobCard, customer, settings, discount = 0, isFreeService = false }) {
+  const round = (val) => Math.round((Number(val) || 0) * 100) / 100;
+
+  const garageState = (settings && settings.state) ? settings.state.trim() : 'Karnataka';
+  const customerState = (customer && customer.state) ? customer.state.trim() : garageState;
+  const isInterState = garageState.toLowerCase() !== customerState.toLowerCase();
+  const stateCode = getStateCode(customerState);
+  const placeOfSupply = stateCode ? `${customerState} (${stateCode})` : customerState;
+
+  const defaultGstRate = Number(settings?.defaultTaxGst) || 18;
+
+  // 1. Calculate Parts Breakdown
+  let partsTaxable = 0;
+  let partsCgst = 0;
+  let partsSgst = 0;
+  let partsIgst = 0;
+  let partsCess = 0;
+  let partsTotal = 0;
+
+  if (jobCard && jobCard.partsUsed && jobCard.partsUsed.length > 0) {
+    jobCard.partsUsed.forEach(item => {
+      const qty = Number(item.quantity) || 1;
+      const rate = Number(item.sellingPrice) || 0;
+      const gross = qty * rate;
+      const itemDiscount = 0;
+      const taxable = gross - itemDiscount;
+      const gstRate = item.gstPercent !== undefined && item.gstPercent !== null 
+        ? Number(item.gstPercent) 
+        : defaultGstRate;
+
+      let cgst = 0;
+      let sgst = 0;
+      let igst = 0;
+
+      if (isInterState) {
+        igst = taxable * (gstRate / 100);
+      } else {
+        cgst = taxable * ((gstRate / 2) / 100);
+        sgst = taxable * ((gstRate / 2) / 100);
+      }
+
+      const cess = 0;
+      const lineTotal = taxable + cgst + sgst + igst + cess;
+
+      partsTaxable += taxable;
+      partsCgst += cgst;
+      partsSgst += sgst;
+      partsIgst += igst;
+      partsCess += cess;
+      partsTotal += lineTotal;
+    });
+  }
+
+  // 2. Calculate Services Breakdown
+  let totalLabour = 0;
+  let totalWashing = 0;
+  let servicesTaxable = 0;
+  let servicesCgst = 0;
+  let servicesSgst = 0;
+  let servicesIgst = 0;
+  let servicesCess = 0;
+  let servicesTotal = 0;
+
+  if (!isFreeService) {
+    if (jobCard && jobCard.servicesPerformed && jobCard.servicesPerformed.length > 0) {
+      jobCard.servicesPerformed.forEach(srv => {
+        const labour = Number(srv.labourCharge) || 0;
+        const washing = Number(srv.washingCharge) || 0;
+        totalLabour += labour;
+        totalWashing += washing;
+      });
+    } else {
+      totalLabour = Number(settings?.defaultLabourCharge) || 500;
+      totalWashing = Number(settings?.defaultWashingCharge) || 300;
+    }
+
+    servicesTaxable = totalLabour + totalWashing;
+    if (isInterState) {
+      servicesIgst = servicesTaxable * (defaultGstRate / 100);
+    } else {
+      servicesCgst = servicesTaxable * ((defaultGstRate / 2) / 100);
+      servicesSgst = servicesTaxable * ((defaultGstRate / 2) / 100);
+    }
+    servicesTotal = servicesTaxable + servicesCgst + servicesSgst + servicesIgst + servicesCess;
+  }
+
+  // 3. Matrix Totals
+  const totalTaxable = round(partsTaxable + servicesTaxable);
+  const totalCgst = round(partsCgst + servicesCgst);
+  const totalSgst = round(partsSgst + servicesSgst);
+  const totalIgst = round(partsIgst + servicesIgst);
+  const totalCess = round(partsCess + servicesCess);
+  const taxAmount = round(totalCgst + totalSgst + totalIgst + totalCess);
+  const totalDiscount = round(Number(discount) || 0);
+
+  const grandTotal = Math.max(0, round(totalTaxable + taxAmount - totalDiscount));
+  const amountInWords = convertNumberToWordsINR(grandTotal);
+
+  return {
+    placeOfSupply,
+    isInterState,
+    amountInWords,
+    totalParts: round(partsTaxable),
+    totalLabour: round(totalLabour),
+    totalWashing: round(totalWashing),
+    taxAmount,
+    grandTotal,
+    taxBreakup: {
+      partsTaxable: round(partsTaxable),
+      partsCgst: round(partsCgst),
+      partsSgst: round(partsSgst),
+      partsIgst: round(partsIgst),
+      partsCess: round(partsCess),
+      partsTotal: round(partsTotal),
+      servicesTaxable: round(servicesTaxable),
+      servicesCgst: round(servicesCgst),
+      servicesSgst: round(servicesSgst),
+      servicesIgst: round(servicesIgst),
+      servicesCess: round(servicesCess),
+      servicesTotal: round(servicesTotal),
+      totalTaxable,
+      totalCgst,
+      totalSgst,
+      totalIgst,
+      totalCess,
+      totalDiscount,
+      grandTotal
+    }
+  };
+}
+
 // @desc    Generate a new invoice from a completed Job Card
 // @route   POST /api/billing/generate
 // @access  Private (Admin/Advisor)
@@ -51,56 +309,33 @@ export const generateInvoice = async (req, res) => {
     const isFreeService = completedJobCount < 3;
     const freeServiceNumber = isFreeService ? completedJobCount + 1 : null;
 
-    // Calculate costs
-    let totalParts = 0;
-    let partsTax = 0;
-    
-    if (jobCard.partsUsed && jobCard.partsUsed.length > 0) {
-      jobCard.partsUsed.forEach(item => {
-        const itemTotal = item.quantity * item.sellingPrice;
-        totalParts += itemTotal;
-        partsTax += itemTotal * (item.gstPercent / 100);
-      });
-    }
-
-    let totalLabour = 0;
-    let totalWashing = 0;
-
-    if (isFreeService) {
-      totalLabour = 0;
-      totalWashing = 0;
-    } else {
-      if (jobCard.servicesPerformed && jobCard.servicesPerformed.length > 0) {
-        jobCard.servicesPerformed.forEach(srv => {
-          totalLabour += srv.labourCharge || 0;
-          totalWashing += srv.washingCharge || 0;
-        });
-      } else {
-        // Fallback to settings / estimatedCost if servicesPerformed array is missing/empty
-        totalLabour = settings.defaultLabourCharge || 500;
-        totalWashing = settings.defaultWashingCharge || 300;
-      }
-    }
-
-    const defaultTaxRate = settings?.defaultTaxGst || 18;
-    const serviceTax = isFreeService ? 0 : ((totalLabour + totalWashing) * (defaultTaxRate / 100));
-    const finalTaxAmount = partsTax + serviceTax;
-    const grandTotal = (totalParts + totalLabour + totalWashing + finalTaxAmount) - Number(discount);
+    // Calculate GST tax breakdown
+    const breakdown = computeInvoiceTaxBreakdown({
+      jobCard,
+      customer: jobCard.customer,
+      settings,
+      discount: Number(discount) || 0,
+      isFreeService
+    });
 
     const invoice = new Invoice({
       jobCard: jobCard._id,
       customer: jobCard.customer._id,
       vehicle: jobCard.vehicle._id,
-      totalParts,
-      totalLabour,
-      totalWashing,
-      discount: Number(discount),
-      taxAmount: finalTaxAmount,
-      grandTotal,
-      balanceDue: grandTotal,
+      totalParts: breakdown.totalParts,
+      totalLabour: breakdown.totalLabour,
+      totalWashing: breakdown.totalWashing,
+      discount: breakdown.taxBreakup.totalDiscount,
+      taxAmount: breakdown.taxAmount,
+      grandTotal: breakdown.grandTotal,
+      balanceDue: breakdown.grandTotal,
       status: 'Unpaid',
       isFreeService,
-      freeServiceNumber
+      freeServiceNumber,
+      placeOfSupply: breakdown.placeOfSupply,
+      isInterState: breakdown.isInterState,
+      amountInWords: breakdown.amountInWords,
+      taxBreakup: breakdown.taxBreakup
     });
 
     const createdInvoice = await invoice.save();
@@ -120,8 +355,8 @@ export const generateInvoice = async (req, res) => {
     });
     
     // Populate to return full info
-    await createdInvoice.populate('customer', 'fullName mobileNumber emailAddress address city state pincode');
-    await createdInvoice.populate('vehicle', 'vehicleNumber brand model');
+    await createdInvoice.populate('customer', 'fullName mobileNumber emailAddress address city state pincode gstin');
+    await createdInvoice.populate('vehicle', 'vehicleNumber brand model fuelType currentOdometerReading manufacturingYear engineNumber chassisNumber transmission');
     await createdInvoice.populate('jobCard');
     
     res.status(201).json(createdInvoice);
@@ -180,15 +415,19 @@ export const getInvoices = async (req, res) => {
 export const getInvoiceById = async (req, res) => {
   try {
     const invoice = await Invoice.findById(req.params.id)
-      .populate('customer', 'fullName mobileNumber emailAddress address city state pincode')
-      .populate('vehicle', 'vehicleNumber brand model fuelType currentOdometerReading manufacturingYear')
+      .populate('customer', 'fullName mobileNumber emailAddress address city state pincode gstin')
+      .populate('vehicle', 'vehicleNumber brand model fuelType currentOdometerReading manufacturingYear engineNumber chassisNumber transmission')
       .populate({
         path: 'jobCard',
         populate: [
-          { path: 'partsUsed.part', select: 'partName partNumber manufacturer' },
-          { path: 'assignedMechanic', select: 'fullName' },
-          { path: 'customer', select: 'fullName mobileNumber emailAddress address city state pincode' },
-          { path: 'vehicle', select: 'vehicleNumber brand model fuelType currentOdometerReading' }
+          { path: 'partsUsed.part', select: 'partName partNumber manufacturer hsnCode unitPrice sellingPrice' },
+          { path: 'assignedMechanic', select: 'fullName employeeId mobileNumber' },
+          { path: 'customer', select: 'fullName mobileNumber emailAddress address city state pincode gstin' },
+          { path: 'vehicle', select: 'vehicleNumber brand model fuelType currentOdometerReading manufacturingYear engineNumber chassisNumber transmission' },
+          {
+            path: 'serviceRequest',
+            populate: { path: 'serviceAdvisor', select: 'fullName name email mobile' }
+          }
         ]
       });
 
@@ -198,7 +437,44 @@ export const getInvoiceById = async (req, res) => {
           return res.status(403).json({ message: 'Not authorized to view this invoice' });
         }
       }
-      res.json(invoice);
+
+      let settings = await Settings.findOne();
+      if (!settings) {
+        settings = await Settings.create({});
+      }
+
+      const invoiceObj = invoice.toObject();
+
+      // Ensure taxBreakup, placeOfSupply, isInterState, and amountInWords are populated
+      if (!invoiceObj.taxBreakup || !invoiceObj.taxBreakup.totalTaxable) {
+        const computed = computeInvoiceTaxBreakdown({
+          jobCard: invoiceObj.jobCard,
+          customer: invoiceObj.customer,
+          settings,
+          discount: invoiceObj.discount || 0,
+          isFreeService: invoiceObj.isFreeService
+        });
+        invoiceObj.taxBreakup = invoiceObj.taxBreakup || computed.taxBreakup;
+        invoiceObj.placeOfSupply = invoiceObj.placeOfSupply || computed.placeOfSupply;
+        invoiceObj.isInterState = invoiceObj.isInterState !== undefined ? invoiceObj.isInterState : computed.isInterState;
+        invoiceObj.amountInWords = invoiceObj.amountInWords || computed.amountInWords;
+      }
+
+      invoiceObj.garageSettings = {
+        garageName: settings.garageName,
+        address: settings.address,
+        city: settings.city,
+        state: settings.state,
+        pincode: settings.pincode,
+        phone: settings.phone,
+        email: settings.email,
+        gstin: settings.gstin,
+        showGstin: settings.showGstin,
+        showGarageContact: settings.showGarageContact,
+        defaultTaxGst: settings.defaultTaxGst
+      };
+
+      res.json(invoiceObj);
     } else {
       res.status(404).json({ message: 'Invoice not found' });
     }
@@ -213,15 +489,19 @@ export const getInvoiceById = async (req, res) => {
 export const getInvoiceByJobCard = async (req, res) => {
   try {
     const invoice = await Invoice.findOne({ jobCard: req.params.jobCardId })
-      .populate('customer', 'fullName mobileNumber emailAddress address city state pincode')
-      .populate('vehicle', 'vehicleNumber brand model fuelType currentOdometerReading manufacturingYear')
+      .populate('customer', 'fullName mobileNumber emailAddress address city state pincode gstin')
+      .populate('vehicle', 'vehicleNumber brand model fuelType currentOdometerReading manufacturingYear engineNumber chassisNumber transmission')
       .populate({
         path: 'jobCard',
         populate: [
-          { path: 'partsUsed.part', select: 'partName partNumber manufacturer' },
-          { path: 'assignedMechanic', select: 'fullName' },
-          { path: 'customer', select: 'fullName mobileNumber emailAddress address city state pincode' },
-          { path: 'vehicle', select: 'vehicleNumber brand model fuelType currentOdometerReading' }
+          { path: 'partsUsed.part', select: 'partName partNumber manufacturer hsnCode unitPrice sellingPrice' },
+          { path: 'assignedMechanic', select: 'fullName employeeId mobileNumber' },
+          { path: 'customer', select: 'fullName mobileNumber emailAddress address city state pincode gstin' },
+          { path: 'vehicle', select: 'vehicleNumber brand model fuelType currentOdometerReading manufacturingYear engineNumber chassisNumber transmission' },
+          {
+            path: 'serviceRequest',
+            populate: { path: 'serviceAdvisor', select: 'fullName name email mobile' }
+          }
         ]
       });
 
@@ -231,7 +511,43 @@ export const getInvoiceByJobCard = async (req, res) => {
           return res.status(403).json({ message: 'Not authorized to view this invoice' });
         }
       }
-      res.json(invoice);
+
+      let settings = await Settings.findOne();
+      if (!settings) {
+        settings = await Settings.create({});
+      }
+
+      const invoiceObj = invoice.toObject();
+
+      if (!invoiceObj.taxBreakup || !invoiceObj.taxBreakup.totalTaxable) {
+        const computed = computeInvoiceTaxBreakdown({
+          jobCard: invoiceObj.jobCard,
+          customer: invoiceObj.customer,
+          settings,
+          discount: invoiceObj.discount || 0,
+          isFreeService: invoiceObj.isFreeService
+        });
+        invoiceObj.taxBreakup = invoiceObj.taxBreakup || computed.taxBreakup;
+        invoiceObj.placeOfSupply = invoiceObj.placeOfSupply || computed.placeOfSupply;
+        invoiceObj.isInterState = invoiceObj.isInterState !== undefined ? invoiceObj.isInterState : computed.isInterState;
+        invoiceObj.amountInWords = invoiceObj.amountInWords || computed.amountInWords;
+      }
+
+      invoiceObj.garageSettings = {
+        garageName: settings.garageName,
+        address: settings.address,
+        city: settings.city,
+        state: settings.state,
+        pincode: settings.pincode,
+        phone: settings.phone,
+        email: settings.email,
+        gstin: settings.gstin,
+        showGstin: settings.showGstin,
+        showGarageContact: settings.showGarageContact,
+        defaultTaxGst: settings.defaultTaxGst
+      };
+
+      res.json(invoiceObj);
     } else {
       res.status(404).json({ message: 'Invoice not found' });
     }
@@ -311,17 +627,55 @@ export const recordPayment = async (req, res) => {
     });
     
     // Repopulate for frontend
-    await updatedInvoice.populate('customer', 'fullName mobileNumber emailAddress address city state pincode');
-    await updatedInvoice.populate('vehicle', 'vehicleNumber brand model');
+    await updatedInvoice.populate('customer', 'fullName mobileNumber emailAddress address city state pincode gstin');
+    await updatedInvoice.populate('vehicle', 'vehicleNumber brand model fuelType currentOdometerReading manufacturingYear engineNumber chassisNumber transmission');
     await updatedInvoice.populate({
       path: 'jobCard',
       populate: [
-        { path: 'partsUsed.part', select: 'partName partNumber' },
-        { path: 'assignedMechanic', select: 'fullName' }
+        { path: 'partsUsed.part', select: 'partName partNumber manufacturer hsnCode unitPrice sellingPrice' },
+        { path: 'assignedMechanic', select: 'fullName employeeId mobileNumber' },
+        { path: 'customer', select: 'fullName mobileNumber emailAddress address city state pincode gstin' },
+        { path: 'vehicle', select: 'vehicleNumber brand model fuelType currentOdometerReading manufacturingYear engineNumber chassisNumber transmission' },
+        {
+          path: 'serviceRequest',
+          populate: { path: 'serviceAdvisor', select: 'fullName name email mobile' }
+        }
       ]
     });
 
-    res.json(updatedInvoice);
+    let settings = await Settings.findOne();
+    if (!settings) settings = await Settings.create({});
+
+    const invoiceObj = updatedInvoice.toObject();
+    if (!invoiceObj.taxBreakup || !invoiceObj.taxBreakup.totalTaxable) {
+      const computed = computeInvoiceTaxBreakdown({
+        jobCard: invoiceObj.jobCard,
+        customer: invoiceObj.customer,
+        settings,
+        discount: invoiceObj.discount || 0,
+        isFreeService: invoiceObj.isFreeService
+      });
+      invoiceObj.taxBreakup = invoiceObj.taxBreakup || computed.taxBreakup;
+      invoiceObj.placeOfSupply = invoiceObj.placeOfSupply || computed.placeOfSupply;
+      invoiceObj.isInterState = invoiceObj.isInterState !== undefined ? invoiceObj.isInterState : computed.isInterState;
+      invoiceObj.amountInWords = invoiceObj.amountInWords || computed.amountInWords;
+    }
+
+    invoiceObj.garageSettings = {
+      garageName: settings.garageName,
+      address: settings.address,
+      city: settings.city,
+      state: settings.state,
+      pincode: settings.pincode,
+      phone: settings.phone,
+      email: settings.email,
+      gstin: settings.gstin,
+      showGstin: settings.showGstin,
+      showGarageContact: settings.showGarageContact,
+      defaultTaxGst: settings.defaultTaxGst
+    };
+
+    res.json(invoiceObj);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -556,17 +910,55 @@ export const verifyPayment = async (req, res) => {
     });
     
     // Repopulate for frontend
-    await updatedInvoice.populate('customer', 'fullName mobileNumber emailAddress address city state pincode');
-    await updatedInvoice.populate('vehicle', 'vehicleNumber brand model');
+    await updatedInvoice.populate('customer', 'fullName mobileNumber emailAddress address city state pincode gstin');
+    await updatedInvoice.populate('vehicle', 'vehicleNumber brand model fuelType currentOdometerReading manufacturingYear engineNumber chassisNumber transmission');
     await updatedInvoice.populate({
       path: 'jobCard',
       populate: [
-        { path: 'partsUsed.part', select: 'partName partNumber' },
-        { path: 'assignedMechanic', select: 'fullName' }
+        { path: 'partsUsed.part', select: 'partName partNumber manufacturer hsnCode unitPrice sellingPrice' },
+        { path: 'assignedMechanic', select: 'fullName employeeId mobileNumber' },
+        { path: 'customer', select: 'fullName mobileNumber emailAddress address city state pincode gstin' },
+        { path: 'vehicle', select: 'vehicleNumber brand model fuelType currentOdometerReading manufacturingYear engineNumber chassisNumber transmission' },
+        {
+          path: 'serviceRequest',
+          populate: { path: 'serviceAdvisor', select: 'fullName name email mobile' }
+        }
       ]
     });
 
-    res.json(updatedInvoice);
+    let settings = await Settings.findOne();
+    if (!settings) settings = await Settings.create({});
+
+    const invoiceObj = updatedInvoice.toObject();
+    if (!invoiceObj.taxBreakup || !invoiceObj.taxBreakup.totalTaxable) {
+      const computed = computeInvoiceTaxBreakdown({
+        jobCard: invoiceObj.jobCard,
+        customer: invoiceObj.customer,
+        settings,
+        discount: invoiceObj.discount || 0,
+        isFreeService: invoiceObj.isFreeService
+      });
+      invoiceObj.taxBreakup = invoiceObj.taxBreakup || computed.taxBreakup;
+      invoiceObj.placeOfSupply = invoiceObj.placeOfSupply || computed.placeOfSupply;
+      invoiceObj.isInterState = invoiceObj.isInterState !== undefined ? invoiceObj.isInterState : computed.isInterState;
+      invoiceObj.amountInWords = invoiceObj.amountInWords || computed.amountInWords;
+    }
+
+    invoiceObj.garageSettings = {
+      garageName: settings.garageName,
+      address: settings.address,
+      city: settings.city,
+      state: settings.state,
+      pincode: settings.pincode,
+      phone: settings.phone,
+      email: settings.email,
+      gstin: settings.gstin,
+      showGstin: settings.showGstin,
+      showGarageContact: settings.showGarageContact,
+      defaultTaxGst: settings.defaultTaxGst
+    };
+
+    res.json(invoiceObj);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -611,56 +1003,33 @@ export const autoGenerateInvoice = async (jobCard) => {
     const isFreeService = completedJobCount < 3;
     const freeServiceNumber = isFreeService ? completedJobCount + 1 : null;
 
-    // Calculate costs
-    let totalParts = 0;
-    let partsTax = 0;
-    
-    if (populatedJobCard.partsUsed && populatedJobCard.partsUsed.length > 0) {
-      populatedJobCard.partsUsed.forEach(item => {
-        const itemTotal = item.quantity * item.sellingPrice;
-        totalParts += itemTotal;
-        partsTax += itemTotal * (item.gstPercent / 100);
-      });
-    }
-
-    let totalLabour = 0;
-    let totalWashing = 0;
-
-    if (isFreeService) {
-      totalLabour = 0;
-      totalWashing = 0;
-    } else {
-      if (populatedJobCard.servicesPerformed && populatedJobCard.servicesPerformed.length > 0) {
-        populatedJobCard.servicesPerformed.forEach(srv => {
-          totalLabour += srv.labourCharge !== undefined ? srv.labourCharge : (srv.isFreeService ? 0 : settings.defaultLabourCharge);
-          totalWashing += srv.washingCharge !== undefined ? srv.washingCharge : (srv.isFreeService ? 0 : settings.defaultWashingCharge);
-        });
-      } else {
-        const isFree = populatedJobCard.servicesPerformed && populatedJobCard.servicesPerformed.some(srv => srv.isFreeService);
-        totalLabour = isFree ? 0 : settings.defaultLabourCharge;
-        totalWashing = isFree ? 0 : settings.defaultWashingCharge;
-      }
-    }
-
-    const defaultTaxRate = settings.defaultTaxGst || 18;
-    const serviceTax = isFreeService ? 0 : ((totalLabour + totalWashing) * (defaultTaxRate / 100));
-    const finalTaxAmount = partsTax + serviceTax;
-    const grandTotal = (totalParts + totalLabour + totalWashing + finalTaxAmount);
+    // Calculate GST tax breakdown
+    const breakdown = computeInvoiceTaxBreakdown({
+      jobCard: populatedJobCard,
+      customer: populatedJobCard.customer,
+      settings,
+      discount: 0,
+      isFreeService
+    });
 
     const invoice = new Invoice({
       jobCard: populatedJobCard._id,
       customer: customerId,
       vehicle: vehicleId,
-      totalParts,
-      totalLabour,
-      totalWashing,
-      discount: 0,
-      taxAmount: finalTaxAmount,
-      grandTotal,
-      balanceDue: grandTotal,
+      totalParts: breakdown.totalParts,
+      totalLabour: breakdown.totalLabour,
+      totalWashing: breakdown.totalWashing,
+      discount: breakdown.taxBreakup.totalDiscount,
+      taxAmount: breakdown.taxAmount,
+      grandTotal: breakdown.grandTotal,
+      balanceDue: breakdown.grandTotal,
       status: 'Unpaid',
       isFreeService,
-      freeServiceNumber
+      freeServiceNumber,
+      placeOfSupply: breakdown.placeOfSupply,
+      isInterState: breakdown.isInterState,
+      amountInWords: breakdown.amountInWords,
+      taxBreakup: breakdown.taxBreakup
     });
 
     const createdInvoice = await invoice.save();

@@ -153,7 +153,14 @@ export const createRenewalOrder = async (req, res) => {
     if (isNaN(numAmount) || numAmount <= 0) {
       return res.status(400).json({
         success: false,
-        message: 'Please enter a valid renewal premium amount.',
+        message: 'Renewal premium amount cannot be ₹0 or negative.',
+      });
+    }
+
+    if (numAmount < 1001 || numAmount > 1999) {
+      return res.status(400).json({
+        success: false,
+        message: 'Renewal premium quotation must be between ₹1,001 and ₹1,999 for demo policy renewals.',
       });
     }
 

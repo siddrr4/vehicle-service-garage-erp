@@ -79,10 +79,19 @@ const sparePartSchema = new mongoose.Schema({
     min: 0,
     default: 18
   },
+  hsnCode: {
+    type: String,
+    default: '8708',
+    trim: true
+  },
   status: {
     type: String,
     enum: ['In Stock', 'Low Stock', 'Out of Stock'],
     default: 'In Stock'
+  },
+  stockLastUpdated: {
+    type: Date,
+    default: Date.now
   },
   stockHistory: [{
     action: {
@@ -126,6 +135,15 @@ sparePartSchema.pre('save', async function() {
     this.status = 'Low Stock';
   } else {
     this.status = 'In Stock';
+  }
+
+  // Update stockLastUpdated when creating a new part or when quantityAvailable is modified
+  if (this.isNew) {
+    if (!this.stockLastUpdated) {
+      this.stockLastUpdated = new Date();
+    }
+  } else if (this.isModified('quantityAvailable')) {
+    this.stockLastUpdated = new Date();
   }
 
   // Generate partNumber if not set

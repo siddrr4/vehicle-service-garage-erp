@@ -89,15 +89,28 @@ salaryStructureSchema.pre('save', function () {
   if (this.deductionItems && this.deductionItems.length > 0) {
     this.deductions = this.deductionItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
   }
-  if (this.effectiveDate && !this.effectiveFrom) {
-    this.effectiveFrom = this.effectiveDate;
-  }
-  if (this.effectiveFrom && !this.effectiveDate) {
-    this.effectiveDate = this.effectiveFrom;
+  if (this.effectiveDate) {
+    const d = new Date(this.effectiveDate);
+    if (!isNaN(d.getTime())) {
+      const normalized = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0));
+      this.effectiveDate = normalized;
+      this.effectiveFrom = normalized;
+    }
+  } else if (this.effectiveFrom) {
+    const d = new Date(this.effectiveFrom);
+    if (!isNaN(d.getTime())) {
+      const normalized = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0));
+      this.effectiveDate = normalized;
+      this.effectiveFrom = normalized;
+    }
   }
 });
 
-salaryStructureSchema.index({ employee: 1, isActive: 1 });
+// Database level guarantee: at most 1 Active salary structure per employee
+salaryStructureSchema.index(
+  { employee: 1, isActive: 1 },
+  { unique: true, partialFilterExpression: { isActive: true } }
+);
 
 const SalaryStructure = mongoose.model('SalaryStructure', salaryStructureSchema);
 

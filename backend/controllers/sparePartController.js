@@ -182,6 +182,7 @@ export const updateSparePart = async (req, res) => {
 
       // Check if quantity changed
       if (sparePart.quantityAvailable > prevQuantity) {
+        sparePart.stockLastUpdated = new Date();
         sparePart.stockHistory.push({
           action: 'Stock Added',
           quantity: sparePart.quantityAvailable - prevQuantity,
@@ -189,6 +190,7 @@ export const updateSparePart = async (req, res) => {
           remarks: 'Manual Stock Addition'
         });
       } else if (sparePart.quantityAvailable < prevQuantity) {
+        sparePart.stockLastUpdated = new Date();
         sparePart.stockHistory.push({
           action: 'Stock Removed',
           quantity: prevQuantity - sparePart.quantityAvailable,

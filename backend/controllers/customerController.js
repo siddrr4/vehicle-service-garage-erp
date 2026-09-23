@@ -84,11 +84,59 @@ export const getCustomers = async (req, res) => {
     const count = result[0]?.metadata[0]?.total || 0;
     const customers = result[0]?.customers || [];
 
+    // Global counts across all garage customers
+    const globalStatsPipeline = [
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'userId',
+          foreignField: '_id',
+          as: 'userAccount'
+        }
+      },
+      {
+        $match: {
+          $and: [
+            {
+              $or: [
+                { userAccount: { $size: 0 } },
+                { 'userAccount.role': 'customer' }
+              ]
+            },
+            {
+              fullName: { $not: /^(admin|manager|mechanic|service advisor|advisor|receptionist)\b/i }
+            }
+          ]
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalCustomers: { $sum: 1 },
+          activeCustomers: {
+            $sum: { $cond: [{ $ne: ['$status', 'Inactive'] }, 1, 0] }
+          }
+        }
+      }
+    ];
+
+    const [globalStats, totalVehicles] = await Promise.all([
+      Customer.aggregate(globalStatsPipeline),
+      Vehicle.countDocuments()
+    ]);
+
+    const stats = {
+      totalCustomers: globalStats[0]?.totalCustomers || count,
+      activeCustomers: globalStats[0]?.activeCustomers || 0,
+      totalVehicles: totalVehicles || 0
+    };
+
     res.json({
       customers,
       page,
       pages: Math.ceil(count / limit) || 1,
-      total: count
+      total: count,
+      stats
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

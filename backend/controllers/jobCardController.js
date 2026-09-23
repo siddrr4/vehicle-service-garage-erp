@@ -6,6 +6,7 @@ import Attendance from '../models/Attendance.js';
 import Vehicle from '../models/Vehicle.js';
 import Invoice from '../models/Invoice.js';
 import ServiceHistory from '../models/ServiceHistory.js';
+import Notification from '../models/Notification.js';
 import { autoGenerateInvoice } from './billingController.js';
 import { getIndiaDateStr } from '../utils/dateUtils.js';
 import {
@@ -14,7 +15,7 @@ import {
   notifyAdminsAndAdvisors,
   checkLowStockCondition,
 } from '../services/notificationService.js';
-import { calculateSlotCapacity } from './appointmentController.js';
+import { calculateSlotCapacity, findNearestWalkInSlot } from './appointmentController.js';
 
 // Helper to deduct parts from inventory
 const deductInventory = async (partsUsed, jobCard, performedBy) => {
@@ -79,6 +80,7 @@ export const createJobCardForAppointment = async (appointment) => {
   const complaint = apt.problemDescription || apt.serviceType || 'General Service';
   const serviceType = apt.serviceType || 'General Service';
 
+  const mechId = apt.assignedMechanic?._id || apt.assignedMechanic || null;
   const jobCard = new JobCard({
     customer: customerId,
     vehicle: vehicleId,
@@ -86,8 +88,8 @@ export const createJobCardForAppointment = async (appointment) => {
     serviceType: serviceType,
     complaint: complaint,
     priority: 'Medium',
-    status: 'Pending',
-    assignedMechanic: null,
+    status: mechId ? 'Assigned' : 'Pending',
+    assignedMechanic: mechId,
   });
 
   return await jobCard.save();
@@ -280,7 +282,15 @@ export const createJobCard = async (req, res) => {
       const todayStr = getIndiaDateStr();
 
       const attendance = await Attendance.findOne({ employeeId: assignedMechanic, date: todayStr });
-      if (!attendance || !attendance.checkIn || attendance.checkOut) {
+      if (
+        !attendance ||
+        !attendance.checkIn ||
+        attendance.checkOut ||
+        attendance.status === 'Leave' ||
+        attendance.status === 'Absent' ||
+        attendance.attendanceStatus === 'Leave' ||
+        attendance.attendanceStatus === 'Absent'
+      ) {
         return res.status(400).json({ message: 'Selected mechanic is currently unavailable or has not checked in.' });
       }
     }
@@ -363,7 +373,15 @@ export const updateJobCard = async (req, res) => {
         const todayStr = getIndiaDateStr();
 
         const attendance = await Attendance.findOne({ employeeId: req.body.assignedMechanic, date: todayStr });
-        if (!attendance || !attendance.checkIn || attendance.checkOut) {
+        if (
+          !attendance ||
+          !attendance.checkIn ||
+          attendance.checkOut ||
+          attendance.status === 'Leave' ||
+          attendance.status === 'Absent' ||
+          attendance.attendanceStatus === 'Leave' ||
+          attendance.attendanceStatus === 'Absent'
+        ) {
           return res.status(400).json({ message: 'Selected mechanic is currently unavailable or has not checked in.' });
         }
       }
@@ -596,12 +614,19 @@ export const updateJobCard = async (req, res) => {
         });
       }
 
-      // Sync status back to linked Appointment
+      // Sync status and mechanic back to linked Appointment
       if (updatedJobCard.serviceRequest) {
+        const aptUpdate = {};
         if (updatedJobCard.status === 'Completed') {
-          await Appointment.findByIdAndUpdate(updatedJobCard.serviceRequest, { status: 'Completed' });
+          aptUpdate.status = 'Completed';
         } else if (updatedJobCard.status === 'Cancelled') {
-          await Appointment.findByIdAndUpdate(updatedJobCard.serviceRequest, { status: 'Cancelled' });
+          aptUpdate.status = 'Cancelled';
+        }
+        if (req.body.assignedMechanic !== undefined) {
+          aptUpdate.assignedMechanic = req.body.assignedMechanic || null;
+        }
+        if (Object.keys(aptUpdate).length > 0) {
+          await Appointment.findByIdAndUpdate(updatedJobCard.serviceRequest, aptUpdate);
         }
       }
 
@@ -854,6 +879,11 @@ export const deleteJobCard = async (req, res) => {
 
     if (jobCard) {
       await JobCard.deleteOne({ _id: jobCard._id });
+      // Cascade delete notifications associated with this job card
+      await Notification.deleteMany({
+        relatedEntityType: 'JobCard',
+        relatedEntityId: jobCard._id,
+      });
       res.json({ message: 'Job card removed' });
     } else {
       res.status(404).json({ message: 'Job card not found' });
@@ -904,16 +934,31 @@ export const getJobCardStats = async (req, res) => {
 export const createWalkInJobCard = async (req, res) => {
   try {
     const {
-      customerId,
-      vehicleId,
+      customerId: rawCustomerId,
+      vehicleId: rawVehicleId,
       services,
       complaint,
       inspectionDetails,
       preferredTime,
-      assignedMechanic,
+      assignedMechanic: rawAssignedMechanic,
+      mechanicId,
       priority = 'Medium',
-      notes = ''
+      notes = '',
+      dispatchNotes
     } = req.body;
+
+    let vehicleId = rawVehicleId || req.body.vehicle?._id || (typeof req.body.vehicle === 'string' ? req.body.vehicle : null);
+    let customerId = rawCustomerId || req.body.customer?._id || (typeof req.body.customer === 'string' ? req.body.customer : null);
+    const assignedMechanic = rawAssignedMechanic || mechanicId || null;
+    const finalNotes = notes || dispatchNotes || '';
+
+    // If vehicleId is provided but customerId was omitted, fallback to vehicle's customer
+    if (vehicleId && !customerId) {
+      const v = await Vehicle.findById(vehicleId).select('customer');
+      if (v && v.customer) {
+        customerId = v.customer._id ? v.customer._id.toString() : v.customer.toString();
+      }
+    }
 
     if (!customerId || !vehicleId) {
       return res.status(400).json({ message: 'Customer and Vehicle are required' });
@@ -933,10 +978,17 @@ export const createWalkInJobCard = async (req, res) => {
         (s) => s.time === preferredTime || s.time.startsWith(preferredTime)
       );
 
-      if (matchedSlot && matchedSlot.available <= 0) {
+      if (!matchedSlot || matchedSlot.available <= 0 || capacityData.checkedInMechanics === 0) {
+        const nextWalkIn = await findNearestWalkInSlot(todayStr);
         return res.status(409).json({
-          noCapacity: true,
-          message: `No capacity available for slot ${preferredTime}. Mechanics are currently occupied.`
+          noCapacity: !nextWalkIn || nextWalkIn.allRemainingSlotsFull,
+          raceCondition: true,
+          reason: nextWalkIn.reason,
+          message: nextWalkIn.message || (nextWalkIn && !nextWalkIn.allRemainingSlotsFull
+            ? `Slot ${preferredTime} was just filled by another booking. We found the next available slot: ${nextWalkIn.time}.`
+            : `No service slot is currently available today.`),
+          nextSlot: nextWalkIn && !nextWalkIn.allRemainingSlotsFull ? nextWalkIn : null,
+          allRemainingSlotsFull: !nextWalkIn || nextWalkIn.allRemainingSlotsFull
         });
       }
     }
@@ -948,7 +1000,15 @@ export const createWalkInJobCard = async (req, res) => {
         date: todayStr
       });
 
-      if (!attendance || !attendance.checkIn || attendance.checkOut || attendance.status === 'Leave' || attendance.status === 'Absent') {
+      if (
+        !attendance ||
+        !attendance.checkIn ||
+        attendance.checkOut ||
+        attendance.status === 'Leave' ||
+        attendance.status === 'Absent' ||
+        attendance.attendanceStatus === 'Leave' ||
+        attendance.attendanceStatus === 'Absent'
+      ) {
         return res.status(400).json({
           message: 'Selected mechanic is currently unavailable or not checked in today.'
         });
@@ -996,10 +1056,10 @@ export const createWalkInJobCard = async (req, res) => {
       inspectionDetails: inspectionDetails || {},
       odometerAtService: inspectionDetails?.odometerReading || vehicle.currentOdometerReading,
       priority: priority || 'Medium',
-      status: assignedMechanic ? 'Assigned' : 'Open',
+      status: assignedMechanic ? 'Assigned' : 'Pending',
       assignedMechanic: assignedMechanic || null,
       estimatedCost,
-      notes
+      notes: finalNotes
     });
 
     const savedJobCard = await jobCard.save();

@@ -7,6 +7,8 @@ import {
   getIndiaCurrentTimeParts,
   formatWorkingHours,
   getAttendanceStatusIST,
+  isSameDayHalfDayLocked,
+  HALF_DAY_LOCK_MESSAGE,
 } from '../utils/dateUtils.js';
 
 // Helper to find Employee record linked to logged-in user
@@ -40,15 +42,15 @@ export const checkIn = async (req, res) => {
 
     // Check if record already exists for today
     let attendance = await Attendance.findOne({ employeeId: employee._id, date: todayDate });
-    if (attendance && attendance.checkIn) {
-      return res.status(400).json({ message: 'You have already checked in for today' });
+    if (attendance && attendance.checkIn && !attendance.checkOut) {
+      return res.status(400).json({ message: `${employee.fullName} is already checked in for today` });
     }
 
     const checkInTime = new Date();
     const { hours, minutes } = getIndiaCurrentTimeParts(checkInTime);
 
-    // Check-In allowed from 08:30 AM onwards in IST
-    if (hours < 8 || (hours === 8 && minutes < 30)) {
+    // Check-In allowed from 08:30 AM onwards in IST for self check-in by mechanics
+    if (isSelfCheckIn && (hours < 8 || (hours === 8 && minutes < 30))) {
       return res.status(400).json({ message: 'Check-in is only allowed from 08:30 AM onwards' });
     }
 
@@ -58,17 +60,27 @@ export const checkIn = async (req, res) => {
 
     const markedByRole = isSelfCheckIn ? 'mechanic' : 'admin';
 
-    attendance = new Attendance({
-      employeeId: employee._id,
-      date: todayDate,
-      checkIn: checkInTime,
-      status,
-      attendanceStatus: status,
-      markedBy: req.user._id,
-      markedByRole,
-    });
-
-    await attendance.save();
+    if (attendance) {
+      attendance.checkIn = checkInTime;
+      attendance.checkOut = null;
+      attendance.workingHours = 'In Progress';
+      attendance.status = status;
+      attendance.attendanceStatus = status;
+      attendance.markedBy = req.user._id;
+      attendance.markedByRole = markedByRole;
+      await attendance.save();
+    } else {
+      attendance = new Attendance({
+        employeeId: employee._id,
+        date: todayDate,
+        checkIn: checkInTime,
+        status,
+        attendanceStatus: status,
+        markedBy: req.user._id,
+        markedByRole,
+      });
+      await attendance.save();
+    }
 
     employee.availability = 'Available';
     await employee.save();
@@ -100,11 +112,11 @@ export const checkOut = async (req, res) => {
     const attendance = await Attendance.findOne({ employeeId: employee._id, date: todayDate });
 
     if (!attendance || !attendance.checkIn) {
-      return res.status(400).json({ message: 'You must check in before checking out' });
+      return res.status(400).json({ message: `${employee.fullName} must check in before checking out` });
     }
 
     if (attendance.checkOut) {
-      return res.status(400).json({ message: 'You have already checked out for today' });
+      return res.status(400).json({ message: `${employee.fullName} has already checked out for today` });
     }
 
     const checkOutTime = new Date();
@@ -131,15 +143,50 @@ export const checkOut = async (req, res) => {
 
 // @desc    Get Today's Attendance Status
 // @route   GET /api/attendance/today
-// @access  Private (Mechanic/Employee)
+// @access  Private (Mechanic/Employee/Admin)
 export const getTodayAttendance = async (req, res) => {
   try {
+    const todayDate = getIndiaDateStr();
+
+    // If specific employee requested
+    if (req.query.employeeId) {
+      const attendance = await Attendance.findOne({ employeeId: req.query.employeeId, date: todayDate });
+      const employee = await Employee.findById(req.query.employeeId);
+      return res.json({
+        checkedIn: Boolean(attendance && attendance.checkIn),
+        checkedOut: Boolean(attendance && attendance.checkOut),
+        attendance: attendance || null,
+        employee,
+      });
+    }
+
+    // If all today records requested
+    if (req.query.all === 'true') {
+      const attendances = await Attendance.find({ date: todayDate }).populate(
+        'employeeId',
+        'fullName employeeId email role specialization phone status availability'
+      );
+      return res.json(attendances);
+    }
+
     const employee = await getEmployeeForUser(req.user);
     if (!employee) {
+      if (req.user && (req.user.role === 'admin' || req.user.role === 'advisor')) {
+        const attendances = await Attendance.find({ date: todayDate }).populate(
+          'employeeId',
+          'fullName employeeId email role specialization phone status availability'
+        );
+        return res.json({
+          checkedIn: false,
+          checkedOut: false,
+          attendance: null,
+          employee: null,
+          allAttendances: attendances,
+        });
+      }
       return res.status(404).json({ message: 'Employee profile not found' });
     }
 
-    const todayDate = getIndiaDateStr();
     const attendance = await Attendance.findOne({ employeeId: employee._id, date: todayDate });
 
     res.json({
@@ -213,6 +260,7 @@ export const getAdminAttendanceSummary = async (req, res) => {
         const currentStatus = rec.status || rec.attendanceStatus || 'Present';
         if (currentStatus === 'Late') {
           lateCount++;
+          presentCount++;
         } else if (currentStatus === 'Half Day') {
           halfDayCount++;
         } else if (currentStatus === 'Early Exit') {
@@ -225,7 +273,15 @@ export const getAdminAttendanceSummary = async (req, res) => {
           presentCount++;
         }
         
-        if (rec.checkIn && !rec.checkOut && targetDate === todayDate) {
+        const isEligibleCheckedIn = Boolean(
+          rec.checkIn &&
+          !rec.checkOut &&
+          currentStatus !== 'Leave' &&
+          currentStatus !== 'Absent' &&
+          rec.attendanceStatus !== 'Leave' &&
+          rec.attendanceStatus !== 'Absent'
+        );
+        if (isEligibleCheckedIn && targetDate === todayDate) {
           currentlyAvailableCount++;
         }
         
@@ -313,6 +369,12 @@ export const markAttendance = async (req, res) => {
       return res.status(400).json({ message: `Status must be one of: ${validStatuses.join(', ')}` });
     }
 
+    // Business Rule: Once official working hours (09:00 AM - 07:00 PM IST) are completed,
+    // Half Day Leave cannot be applied or changed for today.
+    if (status === 'Half Day' && isSameDayHalfDayLocked(date)) {
+      return res.status(400).json({ message: HALF_DAY_LOCK_MESSAGE });
+    }
+
     const employee = await Employee.findById(employeeId);
     if (!employee) {
       return res.status(404).json({ message: 'Employee not found' });
@@ -333,8 +395,17 @@ export const markAttendance = async (req, res) => {
       workingHours = isToday ? 'In Progress' : (attendance?.workingHours || '8h 30m');
     } else if (status === 'Half Day') {
       checkIn = attendance?.checkIn || new Date(`${date}T09:00:00+05:30`);
-      checkOut = isToday ? null : new Date(`${date}T13:00:00+05:30`);
-      workingHours = isToday ? 'In Progress' : '4h 0m';
+      // When taking half day leave, the employee is checked out
+      const standardHalfDayEnd = new Date(`${date}T13:00:00+05:30`);
+      const now = new Date();
+      if (attendance?.checkOut) {
+        checkOut = attendance.checkOut;
+      } else if (isToday) {
+        checkOut = now > checkIn ? now : standardHalfDayEnd;
+      } else {
+        checkOut = standardHalfDayEnd;
+      }
+      workingHours = formatWorkingHours(checkIn, checkOut) || '4h 0m';
     } else if (status === 'Late') {
       checkIn = attendance?.checkIn || new Date(`${date}T09:45:00+05:30`);
       checkOut = isToday ? null : (attendance?.checkOut || new Date(`${date}T17:30:00+05:30`));
@@ -374,9 +445,9 @@ export const markAttendance = async (req, res) => {
 
     // Update availability if marked for today
     if (date === todayDate) {
-      if (status === 'Absent' || status === 'Leave') {
+      if (status === 'Absent' || status === 'Leave' || status === 'Half Day') {
         employee.availability = 'Leave';
-      } else if (status === 'Present' || status === 'Late' || status === 'Half Day') {
+      } else if (status === 'Present' || status === 'Late') {
         const activeJc = await JobCard.findOne({
           assignedMechanic: employee._id,
           status: { $in: ['Open', 'In Progress', 'Assigned', 'Waiting for Parts'] }
@@ -441,15 +512,25 @@ export const getTodayMechanicAvailability = async (req, res) => {
       const att = attendanceMap.get(mech._id.toString());
       const activeJc = jobCardMap.get(mech._id.toString());
 
-      let status = 'Not Checked In / Absent';
+      // Mechanic is available ONLY when:
+      // role = Mechanic, status = Active, today's attendance exists, checkIn exists, checkOut does NOT exist,
+      // and status is not Absent or Leave
+      const isCheckedIn = Boolean(
+        att &&
+        att.checkIn &&
+        !att.checkOut &&
+        att.status !== 'Leave' &&
+        att.status !== 'Absent' &&
+        att.attendanceStatus !== 'Leave' &&
+        att.attendanceStatus !== 'Absent'
+      );
+
+      let status = 'Not Checked In';
       let checkInTime = null;
 
-      const isPresentToday = att && (att.status === 'Present' || att.status === 'Late' || att.status === 'Half Day');
-      const isCheckedIn = att && att.checkIn && !att.checkOut && att.status !== 'Leave' && att.status !== 'Absent';
-
-      if (isCheckedIn || (isPresentToday && !att?.checkOut)) {
+      if (isCheckedIn) {
         checkedIn++;
-        checkInTime = att?.checkIn || new Date(`${todayDate}T09:00:00+05:30`);
+        checkInTime = att.checkIn;
         if (activeJc) {
           status = 'Busy';
           busy++;
@@ -460,11 +541,14 @@ export const getTodayMechanicAvailability = async (req, res) => {
       } else if (att && att.checkOut) {
         status = 'Checked Out';
         notCheckedIn++;
-      } else if (att && (att.status === 'Leave' || att.remarks?.toLowerCase().includes('leave'))) {
+      } else if (att && (att.status === 'Leave' || att.attendanceStatus === 'Leave' || att.remarks?.toLowerCase().includes('leave'))) {
         status = 'On Approved Leave';
         onLeave++;
+      } else if (att && (att.status === 'Absent' || att.attendanceStatus === 'Absent')) {
+        status = 'Absent';
+        notCheckedIn++;
       } else {
-        status = 'Not Checked In / Absent';
+        status = 'Not Checked In';
         notCheckedIn++;
       }
 

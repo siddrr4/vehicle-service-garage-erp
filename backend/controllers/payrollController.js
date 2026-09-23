@@ -139,7 +139,8 @@ export const generateMonthlyPayroll = async (req, res) => {
 
     const daysInMonth = new Date(y, m, 0).getDate();
     const isCurrentMonth = (y === currentYear && m === currentMonth);
-    const cutoffDay = isCurrentMonth ? currentDay : daysInMonth;
+    // When generating for current running month, do not count today if it has not completed / check-in will be marked later
+    const cutoffDay = isCurrentMonth ? Math.max(1, currentDay - 1) : daysInMonth;
 
     const monthStr = String(m).padStart(2, '0');
     const monthNames = [
@@ -147,7 +148,7 @@ export const generateMonthlyPayroll = async (req, res) => {
       'July', 'August', 'September', 'October', 'November', 'December'
     ];
     const calculatedUpTo = isCurrentMonth
-      ? `${monthNames[m]} ${currentDay}, ${y}`
+      ? `${monthNames[m]} ${cutoffDay}, ${y}`
       : `${monthNames[m]} ${daysInMonth}, ${y}`;
 
     // Collect all standard working days (Mon-Sat, excluding Sundays) in the month
@@ -237,13 +238,13 @@ export const generateMonthlyPayroll = async (req, res) => {
           const st = att.status || att.attendanceStatus || '';
           const rem = (att.remarks || '').toLowerCase();
 
-          if (st === 'Absent') {
+          if (st === 'Absent' || rem.includes('absent')) {
             absentDays += 1;
-          } else if (st === 'Leave' || rem.includes('leave')) {
-            leaveDays += 1;
-          } else if (st === 'Half Day') {
+          } else if (st === 'Half Day' || rem.includes('half day') || rem.includes('halfday')) {
             halfDays += 1;
             presentDays += 0.5;
+          } else if (st === 'Leave' || rem.includes('leave')) {
+            leaveDays += 1;
           } else {
             // Present, Late, Early Exit, or check-in
             presentDays += 1;
@@ -436,6 +437,15 @@ export const updatePaymentStatus = async (req, res) => {
     const validMethods = ['Cash', 'Bank Transfer', 'UPI', 'Cheque', 'Other'];
     if (!validMethods.includes(paymentMethod)) {
       return res.status(400).json({ message: `Payment method must be one of: ${validMethods.join(', ')}` });
+    }
+
+    // Business Rule: Ongoing current month salary can only be disbursed at the end of the month
+    const { year: currentYear, month: currentMonth, day: currentDay } = getIndiaDateParts();
+    const daysInMonth = new Date(payroll.year, payroll.month, 0).getDate();
+    if (payroll.year === currentYear && payroll.month === currentMonth && currentDay < daysInMonth) {
+      return res.status(400).json({
+        message: `Salary for the ongoing month (${payroll.month}/${payroll.year}) can only be disbursed at the end of the month (on or after day ${daysInMonth}).`
+      });
     }
 
     payroll.paymentStatus = 'Paid';

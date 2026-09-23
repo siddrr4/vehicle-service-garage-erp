@@ -6,6 +6,8 @@ import {
   updateSalaryStructure,
   toggleSalaryStructureStatus,
   deleteSalaryStructure,
+  getDuplicateSalaryStructures,
+  cleanupSalaryDuplicatesHandler,
 } from '../controllers/salaryController.js';
 import { protect, admin, adminOrAdvisor } from '../middleware/authMiddleware.js';
 
@@ -14,6 +16,12 @@ const router = express.Router();
 router.route('/')
   .get(protect, adminOrAdvisor, getSalaryStructures)
   .post(protect, admin, createSalaryStructure);
+
+router.route('/duplicates')
+  .get(protect, adminOrAdvisor, getDuplicateSalaryStructures);
+
+router.route('/cleanup-duplicates')
+  .post(protect, admin, cleanupSalaryDuplicatesHandler);
 
 router.route('/employee/:employeeId')
   .get(protect, adminOrAdvisor, getSalaryStructureByEmployee);

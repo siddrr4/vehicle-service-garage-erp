@@ -54,7 +54,7 @@ const jobCardSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['Pending', 'Assigned', 'In Progress', 'Waiting for Parts', 'Completed', 'Delivered', 'Cancelled'],
+    enum: ['Pending', 'Open', 'Assigned', 'In Progress', 'Waiting for Parts', 'Completed', 'Delivered', 'Cancelled'],
     default: 'Pending'
   },
   startTime: { type: Date },

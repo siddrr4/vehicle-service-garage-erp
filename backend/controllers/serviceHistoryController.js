@@ -1,5 +1,9 @@
 import ServiceHistory from '../models/ServiceHistory.js';
 import Vehicle from '../models/Vehicle.js';
+import JobCard from '../models/JobCard.js';
+import Employee from '../models/Employee.js';
+import Invoice from '../models/Invoice.js';
+import Customer from '../models/Customer.js';
 import mongoose from 'mongoose';
 import { getIndiaStartOfDay, getIndiaEndOfDay } from '../utils/dateUtils.js';
 
@@ -30,7 +34,7 @@ export const getServiceHistory = async (req, res) => {
       .populate('jobCard', 'jobNumber serviceType status assignedMechanic')
       .populate({
         path: 'jobCard',
-        populate: { path: 'assignedMechanic', select: 'firstName lastName' }
+        populate: { path: 'assignedMechanic', select: 'fullName employeeId specialization mobileNumber' }
       })
       .populate('invoice', 'invoiceNumber grandTotal status')
       .sort({ serviceDate: -1 })
@@ -61,7 +65,7 @@ export const getServiceHistoryById = async (req, res) => {
       .populate({
         path: 'jobCard',
         populate: [
-          { path: 'assignedMechanic', select: 'firstName lastName email' },
+          { path: 'assignedMechanic', select: 'fullName employeeId specialization mobileNumber email' },
           { path: 'partsUsed.part', select: 'partName partNumber sellingPrice' }
         ]
       })
@@ -100,11 +104,11 @@ export const getVehicleServiceHistory = async (req, res) => {
     }
 
     const history = await ServiceHistory.find({ vehicle: vehicleId })
-      .populate('jobCard', 'jobNumber serviceType status complaint workDescription')
+      .populate('jobCard', 'jobNumber serviceType status complaint workDescription assignedMechanic')
       .populate('invoice', 'invoiceNumber grandTotal status')
       .populate({
         path: 'jobCard',
-        populate: { path: 'assignedMechanic', select: 'firstName lastName' }
+        populate: { path: 'assignedMechanic', select: 'fullName employeeId specialization mobileNumber' }
       })
       .sort({ serviceDate: -1 });
 
@@ -125,11 +129,11 @@ export const getMyServiceHistory = async (req, res) => {
 
     const history = await ServiceHistory.find({ customer: req.user.customerRef })
       .populate('vehicle', 'vehicleNumber brand model')
-      .populate('jobCard', 'jobNumber serviceType status')
+      .populate('jobCard', 'jobNumber serviceType status assignedMechanic')
       .populate('invoice', 'invoiceNumber grandTotal status')
       .populate({
         path: 'jobCard',
-        populate: { path: 'assignedMechanic', select: 'firstName lastName' }
+        populate: { path: 'assignedMechanic', select: 'fullName employeeId specialization mobileNumber' }
       })
       .sort({ serviceDate: -1 });
 

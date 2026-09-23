@@ -8,6 +8,7 @@ import WaitingQueue from '../models/WaitingQueue.js';
 import { createJobCardForAppointment } from './jobCardController.js';
 import {
   getIndiaDateStr,
+  getIndiaDateParts,
   getIndiaStartOfDay,
   getIndiaEndOfDay,
   formatDateIST,
@@ -15,6 +16,7 @@ import {
 import {
   notifyCustomer,
   notifyAdminsAndAdvisors,
+  notifyMechanic,
 } from '../services/notificationService.js';
 
 // @desc    Get service advisors
@@ -73,13 +75,44 @@ export const getAppointments = async (req, res) => {
 
     const count = await Appointment.countDocuments(filter);
     
-    const appointments = await Appointment.find(filter)
+    let appointments = await Appointment.find(filter)
       .populate('customer', 'fullName mobileNumber emailAddress')
       .populate('vehicle', 'vehicleNumber brand model')
       .populate('serviceAdvisor', 'firstName lastName')
+      .populate('assignedMechanic', 'fullName employeeId specialization availability mobileNumber')
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+      .lean();
+
+    // For any appointments without an assigned mechanic directly on the record,
+    // check if a linked JobCard already has a mechanic assigned
+    const unassignedAptIds = appointments.filter((a) => !a.assignedMechanic).map((a) => a._id);
+    if (unassignedAptIds.length > 0) {
+      const linkedJobCards = await JobCard.find({
+        serviceRequest: { $in: unassignedAptIds },
+        assignedMechanic: { $ne: null }
+      })
+        .populate('assignedMechanic', 'fullName employeeId specialization availability mobileNumber')
+        .lean();
+
+      const jcMap = new Map();
+      linkedJobCards.forEach((jc) => {
+        if (jc.serviceRequest) {
+          jcMap.set(jc.serviceRequest.toString(), jc.assignedMechanic);
+        }
+      });
+
+      appointments = appointments.map((apt) => {
+        if (!apt.assignedMechanic && jcMap.has(apt._id.toString())) {
+          return {
+            ...apt,
+            assignedMechanic: jcMap.get(apt._id.toString())
+          };
+        }
+        return apt;
+      });
+    }
 
     res.json({
       appointments,
@@ -100,10 +133,20 @@ export const getAppointmentById = async (req, res) => {
     const appointment = await Appointment.findById(req.params.id)
       .populate('customer')
       .populate('vehicle')
-      .populate('serviceAdvisor', 'firstName lastName');
+      .populate('serviceAdvisor', 'firstName lastName')
+      .populate('assignedMechanic', 'fullName employeeId specialization availability mobileNumber');
       
     if (appointment) {
-      res.json(appointment);
+      const aptObj = appointment.toObject();
+      if (!aptObj.assignedMechanic) {
+        const jc = await JobCard.findOne({ serviceRequest: appointment._id })
+          .populate('assignedMechanic', 'fullName employeeId specialization availability mobileNumber')
+          .lean();
+        if (jc && jc.assignedMechanic) {
+          aptObj.assignedMechanic = jc.assignedMechanic;
+        }
+      }
+      res.json(aptObj);
     } else {
       res.status(404).json({ message: 'Appointment not found' });
     }
@@ -113,7 +156,7 @@ export const getAppointmentById = async (req, res) => {
 };
 
 // Configured standard 1-hour time slots
-const TIME_SLOTS = [
+export const TIME_SLOTS = [
   '09:00 AM - 10:00 AM',
   '10:00 AM - 11:00 AM',
   '11:00 AM - 12:00 PM',
@@ -123,18 +166,69 @@ const TIME_SLOTS = [
   '04:00 PM - 05:00 PM'
 ];
 
+export const SLOT_TIME_RANGES = [
+  { time: '09:00 AM - 10:00 AM', startMinutes: 9 * 60, endMinutes: 10 * 60 },
+  { time: '10:00 AM - 11:00 AM', startMinutes: 10 * 60, endMinutes: 11 * 60 },
+  { time: '11:00 AM - 12:00 PM', startMinutes: 11 * 60, endMinutes: 12 * 60 },
+  { time: '12:00 PM - 01:00 PM', startMinutes: 12 * 60, endMinutes: 13 * 60 },
+  { time: '02:00 PM - 03:00 PM', startMinutes: 14 * 60, endMinutes: 15 * 60 },
+  { time: '03:00 PM - 04:00 PM', startMinutes: 15 * 60, endMinutes: 16 * 60 },
+  { time: '04:00 PM - 05:00 PM', startMinutes: 16 * 60, endMinutes: 17 * 60 },
+];
+
 // Helper function to calculate slot capacity for a date & time
-export const calculateSlotCapacity = async (dateStr) => {
+export const calculateSlotCapacity = async (rawDateStr) => {
   const todayStr = getIndiaDateStr();
-  const activeMechanics = await Employee.find({ role: 'Mechanic', status: 'Active' });
+
+  // Robust date normalization supporting YYYY-MM-DD, MM/DD/YYYY, DD/MM/YYYY, Date objects, etc.
+  let dateStr = todayStr;
+  if (rawDateStr) {
+    const raw = String(rawDateStr).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      dateStr = raw;
+    } else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(raw)) {
+      const parts = raw.split('/');
+      const p0 = parseInt(parts[0], 10);
+      const p1 = parseInt(parts[1], 10);
+      const y = parts[2];
+      const m = p0 > 12 ? p1 : p0;
+      const d = p0 > 12 ? p0 : p1;
+      dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    } else if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(raw)) {
+      const parts = raw.split('-');
+      const p0 = parseInt(parts[0], 10);
+      const p1 = parseInt(parts[1], 10);
+      const y = parts[2];
+      const m = p0 > 12 ? p1 : p0;
+      const d = p0 > 12 ? p0 : p1;
+      dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    } else {
+      const parsed = getIndiaDateStr(raw);
+      if (parsed && !parsed.includes('NaN')) {
+        dateStr = parsed;
+      } else {
+        dateStr = raw.substring(0, 10);
+      }
+    }
+  }
+
+  const activeMechanics = await Employee.find({
+    role: { $regex: /^mechanic$/i },
+    status: { $regex: /^active$/i },
+  });
   const totalActiveMechanics = activeMechanics.length;
 
-  // Real capacity: for future dates, capacity is actual active mechanic count (no dummy fallback)
-  let capacityPerSlot = totalActiveMechanics;
+  // Real capacity: for future dates, capacity is actual active mechanic count
+  let capacityPerSlot = Math.max(1, totalActiveMechanics);
+  let checkedInMechanicsCount = totalActiveMechanics;
+  let busyMechanicsCount = 0;
+  let availableMechanicsCount = totalActiveMechanics;
 
   if (dateStr < todayStr) {
     // Past dates cannot be booked
     capacityPerSlot = 0;
+    checkedInMechanicsCount = 0;
+    availableMechanicsCount = 0;
   } else if (dateStr === todayStr) {
     // Real-time capacity based on today's actual attendance and busy status
     const Attendance = (await import('../models/Attendance.js')).default;
@@ -147,8 +241,10 @@ export const calculateSlotCapacity = async (dateStr) => {
 
     // Mechanic is eligible only if checked in, NOT checked out, and NOT on Leave or Absent
     const checkedInMechanicIds = todayAttendance
-      .filter(a => a.checkIn && !a.checkOut && a.status !== 'Leave' && a.status !== 'Absent')
+      .filter(a => a.checkIn && !a.checkOut && a.status !== 'Leave' && a.status !== 'Absent' && a.attendanceStatus !== 'Leave' && a.attendanceStatus !== 'Absent')
       .map(a => a.employeeId.toString());
+
+    checkedInMechanicsCount = checkedInMechanicIds.length;
 
     // Find active job cards assigned to checked-in mechanics
     const activeJobCards = await JobCard.find({
@@ -157,7 +253,9 @@ export const calculateSlotCapacity = async (dateStr) => {
     });
 
     const busyMechanicIds = new Set(activeJobCards.map(jc => jc.assignedMechanic?.toString()).filter(Boolean));
+    busyMechanicsCount = busyMechanicIds.size;
     const availableMechanics = checkedInMechanicIds.filter(id => !busyMechanicIds.has(id));
+    availableMechanicsCount = availableMechanics.length;
 
     // Current available mechanics = today's real slot capacity (0 if none available)
     capacityPerSlot = availableMechanics.length;
@@ -202,10 +300,99 @@ export const calculateSlotCapacity = async (dateStr) => {
   return { 
     date: dateStr, 
     capacityPerSlot, 
+    checkedInMechanics: checkedInMechanicsCount,
+    busyMechanics: busyMechanicsCount,
+    availableMechanics: availableMechanicsCount,
     totalBooked, 
     totalAvailable, 
     totalCapacity: slots.length * capacityPerSlot, 
     slots 
+  };
+};
+
+/**
+ * Finds the nearest available slot for a walk-in customer.
+ * For today: checks current IST time and only considers current (started but not ended) or upcoming slots.
+ * Returns the first slot with available capacity > 0.
+ * If all remaining slots are full or in the past, returns { allRemainingSlotsFull: true, reason, messageTitle, message }.
+ */
+export const findNearestWalkInSlot = async (targetDateStr) => {
+  const todayStr = getIndiaDateStr();
+  const dateStr = targetDateStr || todayStr;
+  const isToday = dateStr === todayStr;
+
+  const slotData = await calculateSlotCapacity(dateStr);
+  const { hour, minute } = getIndiaDateParts();
+  const currentMinutes = hour * 60 + minute;
+
+  // Evaluate candidate slots
+  const evaluatedSlots = slotData.slots.map(slot => {
+    const range = SLOT_TIME_RANGES.find(r => r.time === slot.time);
+    const isPast = isToday && range ? currentMinutes >= range.endMinutes : false;
+    const isCurrent = isToday && range ? (currentMinutes >= range.startMinutes && currentMinutes < range.endMinutes) : false;
+    return {
+      ...slot,
+      isPast,
+      isCurrent,
+    };
+  });
+
+  // For today, only consider slots from current time onward (current active or future slots)
+  const candidateSlots = isToday 
+    ? evaluatedSlots.filter(s => !s.isPast)
+    : evaluatedSlots;
+
+  // Find the first slot chronologically that has available capacity
+  const assignedSlot = candidateSlots.find(s => s.available > 0);
+
+  const checkedInMechanics = slotData.checkedInMechanics ?? (isToday ? 0 : slotData.capacityPerSlot);
+
+  if (assignedSlot) {
+    return {
+      date: dateStr,
+      time: assignedSlot.time,
+      capacity: assignedSlot.capacity,
+      booked: assignedSlot.booked,
+      available: assignedSlot.available,
+      checkedInMechanics,
+      busyMechanics: slotData.busyMechanics,
+      availableMechanics: slotData.availableMechanics,
+      isToday,
+      isCurrentSlot: assignedSlot.isCurrent,
+      allRemainingSlotsFull: false,
+      reason: 'SLOT_AVAILABLE',
+      remainingSlotsCount: candidateSlots.length,
+      slots: candidateSlots,
+    };
+  }
+
+  // Determine reason when no slot available
+  let reason = 'NO_SLOTS';
+  let messageTitle = 'No Service Slot Available Today';
+  let message = 'All remaining service slots are currently full or mechanics are occupied with active job cards.';
+
+  if (isToday && checkedInMechanics === 0) {
+    reason = 'NO_MECHANICS';
+    messageTitle = 'No Mechanics Available Today';
+    message = 'No mechanics are currently checked in today. A service slot cannot be assigned until mechanic availability is confirmed.';
+  } else if (!isToday) {
+    messageTitle = 'No Service Slot Available';
+    message = 'No service slot is currently available for the selected date.';
+  }
+
+  // If no remaining slots have capacity today
+  return {
+    date: dateStr,
+    isToday,
+    checkedInMechanics,
+    busyMechanics: slotData.busyMechanics,
+    availableMechanics: slotData.availableMechanics,
+    allRemainingSlotsFull: true,
+    reason,
+    messageTitle,
+    message,
+    remainingSlotsCount: candidateSlots.length,
+    slots: candidateSlots,
   };
 };
 
@@ -217,6 +404,19 @@ export const getAvailableSlots = async (req, res) => {
     const dateStr = req.query.date || getIndiaDateStr();
     const slotData = await calculateSlotCapacity(dateStr);
     res.json(slotData);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Get Next Available Walk-in Slot (Nearest slot from current IST time onward with real capacity)
+// @route   GET /api/appointments/next-walkin-slot
+// @access  Public / Private
+export const getNextWalkInSlot = async (req, res) => {
+  try {
+    const dateStr = req.query.date || getIndiaDateStr();
+    const result = await findNearestWalkInSlot(dateStr);
+    res.json(result);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -350,11 +550,58 @@ export const createAppointment = async (req, res) => {
     const slotInfo = await calculateSlotCapacity(dateStr);
     const targetSlot = slotInfo.slots.find(s => s.time === preferredTime || s.time.startsWith(preferredTime));
 
-    if (targetSlot && targetSlot.available <= 0) {
+    if (!targetSlot || targetSlot.available <= 0 || (dateStr === getIndiaDateStr() && slotInfo.checkedInMechanics === 0)) {
+      if (bookingType === 'Walk-in') {
+        const nextWalkIn = await findNearestWalkInSlot(dateStr);
+        return res.status(409).json({
+          raceCondition: true,
+          reason: nextWalkIn.reason,
+          message: nextWalkIn.message || (nextWalkIn && !nextWalkIn.allRemainingSlotsFull
+            ? `Slot ${preferredTime} was just filled by another booking. Nearest available slot is now ${nextWalkIn.time}.`
+            : 'No service slot is currently available today.'),
+          nextSlot: nextWalkIn && !nextWalkIn.allRemainingSlotsFull ? nextWalkIn : null,
+          allRemainingSlotsFull: !nextWalkIn || nextWalkIn.allRemainingSlotsFull
+        });
+      }
+
       return res.status(400).json({ 
-        message: targetSlot.capacity === 0
+        message: targetSlot && targetSlot.capacity === 0
           ? 'No capacity available for this date/time. Please join the waiting queue or choose another date.'
           : 'This slot is no longer available. Please select another slot.'
+      });
+    }
+
+    // Duplicate prevention: check if an active appointment already exists for this vehicle on this date & slot or same service
+    const startOfDay = getIndiaStartOfDay(dateStr);
+    const endOfDay = getIndiaEndOfDay(dateStr);
+    const slotPrefix = preferredTime ? preferredTime.split(' - ')[0].trim() : '';
+
+    const existingSlotDuplicate = await Appointment.findOne({
+      vehicle,
+      appointmentDate: { $gte: startOfDay, $lte: endOfDay },
+      $or: [
+        { preferredTime: preferredTime },
+        { preferredTime: new RegExp(`^${slotPrefix}`) }
+      ],
+      status: { $nin: ['Cancelled', 'Rejected'] }
+    });
+
+    if (existingSlotDuplicate) {
+      return res.status(400).json({
+        message: 'An active appointment already exists for this vehicle at the selected date and time slot.'
+      });
+    }
+
+    const existingServiceDuplicate = await Appointment.findOne({
+      vehicle,
+      appointmentDate: { $gte: startOfDay, $lte: endOfDay },
+      serviceType,
+      status: { $nin: ['Cancelled', 'Rejected'] }
+    });
+
+    if (existingServiceDuplicate) {
+      return res.status(400).json({
+        message: `An active appointment for ${serviceType} already exists for this vehicle on this date.`
       });
     }
 
@@ -366,6 +613,7 @@ export const createAppointment = async (req, res) => {
       preferredTime,
       problemDescription,
       serviceAdvisor: serviceAdvisor || undefined,
+      assignedMechanic: req.body.assignedMechanic || undefined,
       status: status || 'Pending',
       bookingType: bookingType || 'Online'
     });
@@ -404,7 +652,7 @@ export const createAppointment = async (req, res) => {
 // @access  Private
 export const updateAppointment = async (req, res) => {
   try {
-    const { customer, vehicle, serviceType, appointmentDate, preferredTime, problemDescription, serviceAdvisor, status } = req.body;
+    const { customer, vehicle, serviceType, appointmentDate, preferredTime, problemDescription, serviceAdvisor, status, assignedMechanic } = req.body;
 
     const appointment = await Appointment.findById(req.params.id);
 
@@ -414,8 +662,8 @@ export const updateAppointment = async (req, res) => {
 
     // Check if appointment already generated a job card or is non-pending
     const existingJobCard = await JobCard.findOne({ serviceRequest: appointment._id });
-    if ((appointment.status !== 'Pending' || existingJobCard) && status === undefined) {
-      return res.status(400).json({ message: 'Approved or non-pending appointments only allow status updates.' });
+    if ((appointment.status !== 'Pending' || existingJobCard) && status === undefined && assignedMechanic === undefined) {
+      return res.status(400).json({ message: 'Approved or non-pending appointments only allow status and mechanic updates.' });
     }
 
     // Update fields if allowed or provided
@@ -430,6 +678,17 @@ export const updateAppointment = async (req, res) => {
 
     if (serviceAdvisor !== undefined) {
       appointment.serviceAdvisor = serviceAdvisor === '' ? undefined : serviceAdvisor;
+    }
+
+    if (assignedMechanic !== undefined) {
+      appointment.assignedMechanic = assignedMechanic === '' ? null : assignedMechanic;
+      if (existingJobCard) {
+        existingJobCard.assignedMechanic = appointment.assignedMechanic;
+        if (appointment.assignedMechanic && existingJobCard.status === 'Pending') {
+          existingJobCard.status = 'Assigned';
+        }
+        await existingJobCard.save();
+      }
     }
 
     const prevStatus = appointment.status;
@@ -538,6 +797,87 @@ export const deleteAppointment = async (req, res) => {
 
     await appointment.deleteOne();
     res.json({ message: 'Appointment removed' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Assign mechanic to appointment
+// @route   PUT /api/appointments/:id/assign-mechanic
+// @access  Private (Admin / Advisor)
+export const assignMechanicToAppointment = async (req, res) => {
+  try {
+    const { mechanicId } = req.body;
+    const appointment = await Appointment.findById(req.params.id)
+      .populate('customer')
+      .populate('vehicle');
+
+    if (!appointment) {
+      return res.status(404).json({ message: 'Appointment not found' });
+    }
+
+    let mechanic = null;
+    if (mechanicId) {
+      mechanic = await Employee.findById(mechanicId);
+      if (!mechanic || mechanic.role !== 'Mechanic') {
+        return res.status(400).json({ message: 'Selected employee is not a valid mechanic.' });
+      }
+      appointment.assignedMechanic = mechanicId;
+    } else {
+      appointment.assignedMechanic = null;
+    }
+
+    await appointment.save();
+
+    // Check if there is an existing JobCard linked to this appointment
+    const jobCard = await JobCard.findOne({ serviceRequest: appointment._id });
+    if (jobCard) {
+      const prevMech = jobCard.assignedMechanic;
+      jobCard.assignedMechanic = mechanicId || null;
+      if (mechanicId && jobCard.status === 'Pending') {
+        jobCard.status = 'Assigned';
+      } else if (!mechanicId && jobCard.status === 'Assigned') {
+        jobCard.status = 'Pending';
+      }
+      await jobCard.save();
+
+      // If previous mechanic was changed/removed, check if they have other active jobs
+      if (prevMech && (!mechanicId || prevMech.toString() !== mechanicId.toString())) {
+        const remainingActive = await JobCard.countDocuments({
+          assignedMechanic: prevMech,
+          status: { $in: ['Assigned', 'In Progress', 'Waiting for Parts'] },
+        });
+        if (remainingActive === 0) {
+          await Employee.findByIdAndUpdate(prevMech, { availability: 'Available' });
+        }
+      }
+    }
+
+    if (mechanicId) {
+      await Employee.findByIdAndUpdate(mechanicId, { availability: 'Busy' });
+      try {
+        await notifyMechanic(mechanicId, {
+          type: 'MECHANIC_ASSIGNED',
+          title: 'Appointment Assigned to You',
+          message: `Service appointment for vehicle ${appointment.vehicle?.vehicleNumber || ''} (${appointment.serviceType}) on ${formatDateIST(appointment.appointmentDate)} has been assigned to you.`,
+          relatedEntityType: 'Appointment',
+          relatedEntityId: appointment._id,
+        });
+      } catch (err) {
+        console.error('Notification error to mechanic:', err.message);
+      }
+    }
+
+    const updated = await Appointment.findById(appointment._id)
+      .populate('customer', 'fullName mobileNumber emailAddress')
+      .populate('vehicle', 'vehicleNumber brand model')
+      .populate('serviceAdvisor', 'firstName lastName')
+      .populate('assignedMechanic', 'fullName employeeId specialization availability mobileNumber');
+
+    res.json({
+      message: mechanicId ? 'Mechanic assigned successfully' : 'Mechanic unassigned successfully',
+      appointment: updated,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

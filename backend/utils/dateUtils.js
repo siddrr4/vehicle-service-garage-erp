@@ -200,3 +200,69 @@ export const getAttendanceStatusIST = (checkInTime, checkOutTime) => {
     return isLateCheckIn ? 'Late' : 'Present';
   }
 };
+
+/**
+ * Formats timestamp to localized IST time string (e.g. "11:53 am").
+ * @param {Date|string} date
+ * @returns {string}
+ */
+export const formatTimeIST = (date) => {
+  if (!date) return '--:--';
+  const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return '--:--';
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: TIMEZONE,
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(d).toLowerCase();
+};
+
+export const HALF_DAY_LOCK_MESSAGE =
+  'Half Day Leave cannot be applied after the working day has been completed. Working hours are 9:00 AM to 7:00 PM.';
+
+/**
+ * Checks if same-day Half Day leave is locked for the given date.
+ * Working hours are 09:00 AM to 07:00 PM IST.
+ * Once current IST time reaches 07:00 PM (19:00) or later on today's date,
+ * Half Day leave cannot be applied or changed for today.
+ *
+ * @param {string} dateStr YYYY-MM-DD
+ * @param {Date|string|number} [currentTime=new Date()]
+ * @returns {boolean}
+ */
+export const isSameDayHalfDayLocked = (dateStr, currentTime = new Date()) => {
+  if (!dateStr) return false;
+  const todayDate = getIndiaDateStr(currentTime);
+  if (dateStr !== todayDate) {
+    return false;
+  }
+  const { hours } = getIndiaCurrentTimeParts(currentTime);
+  return hours >= 19;
+};
+
+/**
+ * Formats stock last updated timestamp into localized IST string.
+ * Example: "23 Sept 2026, 10:35 AM"
+ * @param {Date|string|number} date
+ * @returns {string}
+ */
+export const formatStockLastUpdated = (date) => {
+  if (!date) return '—';
+  const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return '—';
+
+  const defaultOptions = {
+    timeZone: TIMEZONE,
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  };
+  const str = d.toLocaleString('en-IN', defaultOptions);
+  return str.replace(/\b(am|pm)\b/gi, (m) => m.toUpperCase());
+};
+
+

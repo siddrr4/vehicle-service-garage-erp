@@ -69,6 +69,38 @@ const invoiceSchema = new mongoose.Schema({
   freeServiceNumber: {
     type: Number
   },
+  placeOfSupply: {
+    type: String,
+    default: 'Karnataka'
+  },
+  isInterState: {
+    type: Boolean,
+    default: false
+  },
+  amountInWords: {
+    type: String
+  },
+  taxBreakup: {
+    partsTaxable: { type: Number, default: 0 },
+    partsCgst: { type: Number, default: 0 },
+    partsSgst: { type: Number, default: 0 },
+    partsIgst: { type: Number, default: 0 },
+    partsCess: { type: Number, default: 0 },
+    partsTotal: { type: Number, default: 0 },
+    servicesTaxable: { type: Number, default: 0 },
+    servicesCgst: { type: Number, default: 0 },
+    servicesSgst: { type: Number, default: 0 },
+    servicesIgst: { type: Number, default: 0 },
+    servicesCess: { type: Number, default: 0 },
+    servicesTotal: { type: Number, default: 0 },
+    totalTaxable: { type: Number, default: 0 },
+    totalCgst: { type: Number, default: 0 },
+    totalSgst: { type: Number, default: 0 },
+    totalIgst: { type: Number, default: 0 },
+    totalCess: { type: Number, default: 0 },
+    totalDiscount: { type: Number, default: 0 },
+    grandTotal: { type: Number, default: 0 }
+  },
   razorpayOrderId: {
     type: String
   },

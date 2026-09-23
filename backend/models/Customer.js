@@ -37,6 +37,11 @@ const customerSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Pincode is required'],
   },
+  gstin: {
+    type: String,
+    trim: true,
+    uppercase: true,
+  },
   aadharNumber: {
     type: String,
     unique: true,

@@ -29,11 +29,47 @@ export const getEmployees = async (req, res) => {
     if (req.query.role) {
       filterQuery.role = req.query.role;
     }
-    if (req.query.availability) {
-      filterQuery.availability = req.query.availability;
-    }
     if (req.query.status) {
       filterQuery.status = req.query.status;
+    }
+
+    const todayStr = getIndiaDateStr();
+
+    // Derive availability filtering from today's actual Attendance records
+    if (req.query.availability) {
+      const avail = req.query.availability;
+      if (avail === 'Checked In' || avail === 'Available') {
+        const checkedInRecords = await Attendance.find({
+          date: todayStr,
+          checkIn: { $exists: true, $ne: null },
+          checkOut: null,
+          status: { $nin: ['Leave', 'Absent'] },
+          attendanceStatus: { $nin: ['Leave', 'Absent'] },
+        });
+        filterQuery._id = { $in: checkedInRecords.map((a) => a.employeeId) };
+      } else if (avail === 'Checked Out') {
+        const checkedOutRecords = await Attendance.find({
+          date: todayStr,
+          checkIn: { $exists: true, $ne: null },
+          checkOut: { $exists: true, $ne: null },
+        });
+        filterQuery._id = { $in: checkedOutRecords.map((a) => a.employeeId) };
+      } else if (avail === 'Not Checked In') {
+        const checkedInRecords = await Attendance.find({
+          date: todayStr,
+          checkIn: { $exists: true, $ne: null },
+        });
+        filterQuery._id = { $nin: checkedInRecords.map((a) => a.employeeId) };
+      } else if (avail === 'Leave') {
+        const leaveRecords = await Attendance.find({
+          date: todayStr,
+          $or: [
+            { status: { $in: ['Leave', 'Absent'] } },
+            { attendanceStatus: { $in: ['Leave', 'Absent'] } },
+          ],
+        });
+        filterQuery._id = { $in: leaveRecords.map((a) => a.employeeId) };
+      }
     }
 
     const combinedQuery = { ...keywordFilter, ...filterQuery };
@@ -46,8 +82,35 @@ export const getEmployees = async (req, res) => {
       .skip(skip)
       .limit(limit);
 
+    // Fetch today's attendance records for these employees in IST
+    const employeeIds = employees.map((e) => e._id);
+    const todayAttendances = await Attendance.find({
+      employeeId: { $in: employeeIds },
+      date: todayStr,
+    });
+
+    const attendanceMap = new Map();
+    todayAttendances.forEach((att) => {
+      attendanceMap.set(att.employeeId.toString(), att);
+    });
+
+    const enrichedEmployees = employees.map((emp) => {
+      const empObj = emp.toObject();
+      const att = attendanceMap.get(emp._id.toString());
+      empObj.todayAttendance = {
+        checkedIn: Boolean(att && att.checkIn),
+        checkedOut: Boolean(att && att.checkOut),
+        checkInTime: att ? att.checkIn : null,
+        checkOutTime: att ? att.checkOut : null,
+        status: att ? (att.status || att.attendanceStatus) : 'Not Checked In',
+        workingHours: att ? att.workingHours : '',
+        remarks: att ? att.remarks : '',
+      };
+      return empObj;
+    });
+
     res.json({
-      employees,
+      employees: enrichedEmployees,
       page,
       pages: Math.ceil(count / limit),
       total: count,
@@ -97,12 +160,48 @@ export const getActiveMechanics = async (req, res) => {
       activeJobsMap.set(jc._id.toString(), jc.count);
     });
 
-    // Filter mechanics who are checked in and NOT checked out
+    if (req.query.includeAll === 'true' || req.query.forAppointment === 'true') {
+      const mechanicsWithStatus = allMechanics.map((mechanic) => {
+        const attendanceRecord = todayAttendance.find(
+          (record) => record.employeeId.toString() === mechanic._id.toString()
+        );
+        const activeJobsCount = activeJobsMap.get(mechanic._id.toString()) || 0;
+        let attendanceStatus = 'Not Checked In';
+        if (attendanceRecord) {
+          if (attendanceRecord.status === 'Leave' || attendanceRecord.attendanceStatus === 'Leave') {
+            attendanceStatus = 'Leave';
+          } else if (attendanceRecord.status === 'Absent' || attendanceRecord.attendanceStatus === 'Absent') {
+            attendanceStatus = 'Absent';
+          } else if (attendanceRecord.checkOut) {
+            attendanceStatus = 'Checked Out';
+          } else if (attendanceRecord.checkIn) {
+            attendanceStatus = 'Checked In';
+          }
+        }
+        return {
+          ...mechanic,
+          activeJobsCount,
+          attendanceStatus,
+          displayStatus: attendanceStatus === 'Leave' ? 'Leave' : attendanceStatus === 'Absent' ? 'Absent' : activeJobsCount > 0 ? 'Busy' : (attendanceStatus === 'Checked In' ? 'Available' : 'Not Checked In')
+        };
+      });
+      return res.json(mechanicsWithStatus);
+    }
+
+    // Filter mechanics who are checked in, NOT checked out, and not on leave/absent
     const availableMechanics = allMechanics.filter((mechanic) => {
       const attendanceRecord = todayAttendance.find(
         (record) => record.employeeId.toString() === mechanic._id.toString()
       );
-      return attendanceRecord && attendanceRecord.checkIn && !attendanceRecord.checkOut;
+      return (
+        attendanceRecord &&
+        attendanceRecord.checkIn &&
+        !attendanceRecord.checkOut &&
+        attendanceRecord.status !== 'Leave' &&
+        attendanceRecord.status !== 'Absent' &&
+        attendanceRecord.attendanceStatus !== 'Leave' &&
+        attendanceRecord.attendanceStatus !== 'Absent'
+      );
     }).map((mechanic) => {
       const activeJobsCount = activeJobsMap.get(mechanic._id.toString()) || 0;
       return {
@@ -123,23 +222,71 @@ export const getActiveMechanics = async (req, res) => {
 // @access  Private
 export const getEmployeeStats = async (req, res) => {
   try {
+    const todayStr = getIndiaDateStr();
     const totalEmployees = await Employee.countDocuments();
-    const totalMechanics = await Employee.countDocuments({ role: 'Mechanic', status: 'Active' });
-    const availableMechanics = await Employee.countDocuments({
-      role: 'Mechanic',
-      status: 'Active',
-      availability: 'Available',
+    const activeMechanics = await Employee.find({ role: 'Mechanic', status: 'Active' });
+    const totalMechanics = activeMechanics.length;
+    const mechanicIds = activeMechanics.map((m) => m._id);
+
+    // Fetch actual today's attendance for mechanics
+    const todayAttendance = await Attendance.find({
+      employeeId: { $in: mechanicIds },
+      date: todayStr,
     });
-    const busyMechanics = await Employee.countDocuments({
-      role: 'Mechanic',
-      status: 'Active',
-      availability: 'Busy',
+
+    const activeJobCards = await JobCard.aggregate([
+      {
+        $match: {
+          assignedMechanic: { $in: mechanicIds },
+          status: { $in: ['Open', 'In Progress', 'Assigned', 'Waiting for Parts', 'Pending'] },
+        },
+      },
+      {
+        $group: {
+          _id: '$assignedMechanic',
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const activeJobsMap = new Map();
+    activeJobCards.forEach((jc) => {
+      activeJobsMap.set(jc._id.toString(), jc.count);
     });
-    const leaveMechanics = await Employee.countDocuments({
-      role: 'Mechanic',
-      status: 'Active',
-      availability: 'Leave',
+
+    const attMap = new Map();
+    todayAttendance.forEach((att) => {
+      attMap.set(att.employeeId.toString(), att);
     });
+
+    let availableMechanics = 0;
+    let busyMechanics = 0;
+    let leaveMechanics = 0;
+
+    activeMechanics.forEach((m) => {
+      const att = attMap.get(m._id.toString());
+      const isCheckedIn = Boolean(
+        att &&
+        att.checkIn &&
+        !att.checkOut &&
+        att.status !== 'Leave' &&
+        att.status !== 'Absent' &&
+        att.attendanceStatus !== 'Leave' &&
+        att.attendanceStatus !== 'Absent'
+      );
+
+      if (isCheckedIn) {
+        const busyCount = activeJobsMap.get(m._id.toString()) || 0;
+        if (busyCount > 0) {
+          busyMechanics++;
+        } else {
+          availableMechanics++;
+        }
+      } else if (att && (att.status === 'Leave' || att.attendanceStatus === 'Leave')) {
+        leaveMechanics++;
+      }
+    });
+
     const serviceAdvisors = await Employee.countDocuments({ role: 'Service Advisor', status: 'Active' });
 
     res.json({
@@ -163,7 +310,19 @@ export const getEmployeeById = async (req, res) => {
     const employee = await Employee.findById(req.params.id).populate('userRef', 'firstName lastName email role');
 
     if (employee) {
-      res.json(employee);
+      const todayStr = getIndiaDateStr();
+      const att = await Attendance.findOne({ employeeId: employee._id, date: todayStr });
+      const empObj = employee.toObject();
+      empObj.todayAttendance = {
+        checkedIn: Boolean(att && att.checkIn),
+        checkedOut: Boolean(att && att.checkOut),
+        checkInTime: att ? att.checkIn : null,
+        checkOutTime: att ? att.checkOut : null,
+        status: att ? (att.status || att.attendanceStatus) : 'Not Checked In',
+        workingHours: att ? att.workingHours : '',
+        remarks: att ? att.remarks : '',
+      };
+      res.json(empObj);
     } else {
       res.status(404).json({ message: 'Employee not found' });
     }

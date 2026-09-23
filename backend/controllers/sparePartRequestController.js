@@ -161,6 +161,7 @@ export const issueRequest = async (req, res) => {
 
     // 1. Deduct Stock and update Stock History
     part.quantityAvailable = Math.max(0, part.quantityAvailable - qtyToIssue);
+    part.stockLastUpdated = new Date();
     part.stockHistory.push({
       action: 'Issued',
       quantity: qtyToIssue,
@@ -289,6 +290,7 @@ export const approveReturn = async (req, res) => {
 
     // 1. Add back to inventory & record stock history
     part.quantityAvailable += returnQty;
+    part.stockLastUpdated = new Date();
     part.stockHistory.push({
       action: 'Returned',
       quantity: returnQty,

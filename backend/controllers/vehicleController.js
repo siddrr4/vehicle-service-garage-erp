@@ -88,6 +88,51 @@ export const getVehicleById = async (req, res) => {
   }
 };
 
+// Helper to escape regex special characters
+const escapeRegex = (str) => {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+// Helper to normalize identification strings (trim and uppercase, return undefined if empty)
+const normalizeIdNumber = (val) => {
+  if (val === null || val === undefined) return undefined;
+  const trimmed = String(val).trim();
+  return trimmed.length > 0 ? trimmed.toUpperCase() : undefined;
+};
+
+// Map duplicate key errors (code 11000) or controller validations to user-friendly messages
+const handleDuplicateError = (error, res) => {
+  if (error.code === 11000) {
+    const errorStr = JSON.stringify(error.keyPattern || {}) + ' ' + (error.message || '');
+    if (errorStr.includes('vehicleNumber')) {
+      return res.status(400).json({
+        message: 'Vehicle number already exists. Please enter a different vehicle number.',
+        field: 'vehicleNumber',
+      });
+    }
+    if (errorStr.includes('chassisNumber')) {
+      return res.status(400).json({
+        message: 'Chassis/VIN number already exists for another vehicle.',
+        field: 'chassisNumber',
+      });
+    }
+    if (errorStr.includes('engineNumber')) {
+      return res.status(400).json({
+        message: 'Engine number already exists for another vehicle.',
+        field: 'engineNumber',
+      });
+    }
+    if (errorStr.includes('insuranceNumber')) {
+      return res.status(400).json({
+        message: 'Insurance policy number already exists for another vehicle.',
+        field: 'insuranceNumber',
+      });
+    }
+    return res.status(400).json({ message: 'Duplicate identification number already exists.' });
+  }
+  return res.status(400).json({ message: error.message });
+};
+
 // @desc    Create new vehicle
 // @route   POST /api/vehicles
 // @access  Private
@@ -113,7 +158,7 @@ export const createVehicle = async (req, res) => {
 
     // Validate required fields
     if (!customerId) return res.status(400).json({ message: 'Customer is required' });
-    if (!vehicleNumber) return res.status(400).json({ message: 'Vehicle number is required' });
+    if (!vehicleNumber || !String(vehicleNumber).trim()) return res.status(400).json({ message: 'Vehicle number is required', field: 'vehicleNumber' });
     if (!brand) return res.status(400).json({ message: 'Brand is required' });
     if (!model) return res.status(400).json({ message: 'Model is required' });
     if (!manufacturingYear) return res.status(400).json({ message: 'Manufacturing year is required' });
@@ -129,20 +174,75 @@ export const createVehicle = async (req, res) => {
       return res.status(404).json({ message: 'Customer not found' });
     }
 
+    const normVehicleNumber = normalizeIdNumber(vehicleNumber);
+    const normChassisNumber = normalizeIdNumber(chassisNumber);
+    const normEngineNumber = normalizeIdNumber(engineNumber);
+    const normInsuranceNumber = normalizeIdNumber(insuranceNumber);
+
+    // 1. Check duplicate vehicleNumber (case-insensitive)
+    const existingVehicleNumber = await Vehicle.findOne({
+      vehicleNumber: { $regex: new RegExp(`^${escapeRegex(normVehicleNumber)}$`, 'i') },
+    });
+    if (existingVehicleNumber) {
+      return res.status(400).json({
+        message: 'Vehicle number already exists. Please enter a different vehicle number.',
+        field: 'vehicleNumber',
+      });
+    }
+
+    // 2. Check duplicate chassisNumber (case-insensitive, when provided)
+    if (normChassisNumber) {
+      const existingChassis = await Vehicle.findOne({
+        chassisNumber: { $regex: new RegExp(`^${escapeRegex(normChassisNumber)}$`, 'i') },
+      });
+      if (existingChassis) {
+        return res.status(400).json({
+          message: 'Chassis/VIN number already exists for another vehicle.',
+          field: 'chassisNumber',
+        });
+      }
+    }
+
+    // 3. Check duplicate engineNumber (case-insensitive, when provided)
+    if (normEngineNumber) {
+      const existingEngine = await Vehicle.findOne({
+        engineNumber: { $regex: new RegExp(`^${escapeRegex(normEngineNumber)}$`, 'i') },
+      });
+      if (existingEngine) {
+        return res.status(400).json({
+          message: 'Engine number already exists for another vehicle.',
+          field: 'engineNumber',
+        });
+      }
+    }
+
+    // 4. Check duplicate insuranceNumber (case-insensitive, when provided)
+    if (normInsuranceNumber) {
+      const existingInsurance = await Vehicle.findOne({
+        insuranceNumber: { $regex: new RegExp(`^${escapeRegex(normInsuranceNumber)}$`, 'i') },
+      });
+      if (existingInsurance) {
+        return res.status(400).json({
+          message: 'Insurance policy number already exists for another vehicle.',
+          field: 'insuranceNumber',
+        });
+      }
+    }
+
     const vehicle = new Vehicle({
       customer: customerId,
-      vehicleNumber: vehicleNumber.toUpperCase().trim(),
-      brand,
-      model,
+      vehicleNumber: normVehicleNumber,
+      brand: brand?.trim(),
+      model: model?.trim(),
       manufacturingYear,
       fuelType,
       transmission,
       registrationDate,
-      insuranceNumber: insuranceNumber || undefined,
+      insuranceNumber: normInsuranceNumber || undefined,
       insuranceExpiryDate: insuranceExpiryDate || undefined,
       warrantyExpiryDate: warrantyExpiryDate || undefined,
-      engineNumber: engineNumber || undefined,
-      chassisNumber: chassisNumber || undefined,
+      engineNumber: normEngineNumber || undefined,
+      chassisNumber: normChassisNumber || undefined,
       purchaseType: purchaseType || 'Used',
       initialOdometer: purchaseType === 'New' ? 0 : currentOdometerReading,
       currentOdometerReading: purchaseType === 'New' ? 0 : currentOdometerReading,
@@ -155,11 +255,7 @@ export const createVehicle = async (req, res) => {
     await createdVehicle.populate('customer', 'fullName mobileNumber customerId');
     res.status(201).json(createdVehicle);
   } catch (error) {
-    // Handle unique constraint violation for vehicleNumber
-    if (error.code === 11000) {
-      return res.status(400).json({ message: 'Vehicle number already registered' });
-    }
-    res.status(400).json({ message: error.message });
+    return handleDuplicateError(error, res);
   }
 };
 
@@ -174,22 +270,84 @@ export const updateVehicle = async (req, res) => {
       return res.status(404).json({ message: 'Vehicle not found' });
     }
 
-    // Only update fields that are provided in the request body
-    const updatableFields = [
-      'vehicleNumber',
-      'brand',
-      'model',
-      'manufacturingYear',
-      'fuelType',
-      'transmission',
-      'registrationDate',
-      'insuranceNumber',
-      'insuranceExpiryDate',
-      'warrantyExpiryDate',
-      'engineNumber',
-      'chassisNumber',
-      'purchaseType'
-    ];
+    // 1. Vehicle Number validation
+    if (req.body.vehicleNumber !== undefined) {
+      const normVehicleNumber = normalizeIdNumber(req.body.vehicleNumber);
+      if (!normVehicleNumber) {
+        return res.status(400).json({ message: 'Vehicle number is required', field: 'vehicleNumber' });
+      }
+      const existingVehicle = await Vehicle.findOne({
+        _id: { $ne: req.params.id },
+        vehicleNumber: { $regex: new RegExp(`^${escapeRegex(normVehicleNumber)}$`, 'i') },
+      });
+      if (existingVehicle) {
+        return res.status(400).json({
+          message: 'Vehicle number already exists. Please enter a different vehicle number.',
+          field: 'vehicleNumber',
+        });
+      }
+      vehicle.vehicleNumber = normVehicleNumber;
+    }
+
+    // 2. Chassis Number validation
+    if (req.body.chassisNumber !== undefined) {
+      const normChassisNumber = normalizeIdNumber(req.body.chassisNumber);
+      if (normChassisNumber) {
+        const existingChassis = await Vehicle.findOne({
+          _id: { $ne: req.params.id },
+          chassisNumber: { $regex: new RegExp(`^${escapeRegex(normChassisNumber)}$`, 'i') },
+        });
+        if (existingChassis) {
+          return res.status(400).json({
+            message: 'Chassis/VIN number already exists for another vehicle.',
+            field: 'chassisNumber',
+          });
+        }
+        vehicle.chassisNumber = normChassisNumber;
+      } else {
+        vehicle.chassisNumber = undefined;
+      }
+    }
+
+    // 3. Engine Number validation
+    if (req.body.engineNumber !== undefined) {
+      const normEngineNumber = normalizeIdNumber(req.body.engineNumber);
+      if (normEngineNumber) {
+        const existingEngine = await Vehicle.findOne({
+          _id: { $ne: req.params.id },
+          engineNumber: { $regex: new RegExp(`^${escapeRegex(normEngineNumber)}$`, 'i') },
+        });
+        if (existingEngine) {
+          return res.status(400).json({
+            message: 'Engine number already exists for another vehicle.',
+            field: 'engineNumber',
+          });
+        }
+        vehicle.engineNumber = normEngineNumber;
+      } else {
+        vehicle.engineNumber = undefined;
+      }
+    }
+
+    // 4. Insurance Policy Number validation
+    if (req.body.insuranceNumber !== undefined) {
+      const normInsuranceNumber = normalizeIdNumber(req.body.insuranceNumber);
+      if (normInsuranceNumber) {
+        const existingInsurance = await Vehicle.findOne({
+          _id: { $ne: req.params.id },
+          insuranceNumber: { $regex: new RegExp(`^${escapeRegex(normInsuranceNumber)}$`, 'i') },
+        });
+        if (existingInsurance) {
+          return res.status(400).json({
+            message: 'Insurance policy number already exists for another vehicle.',
+            field: 'insuranceNumber',
+          });
+        }
+        vehicle.insuranceNumber = normInsuranceNumber;
+      } else {
+        vehicle.insuranceNumber = undefined;
+      }
+    }
 
     if (req.body.currentOdometerReading !== undefined) {
       if (req.body.currentOdometerReading < vehicle.currentOdometerReading) {
@@ -198,25 +356,30 @@ export const updateVehicle = async (req, res) => {
       vehicle.currentOdometerReading = req.body.currentOdometerReading;
     }
 
-    updatableFields.forEach((field) => {
+    // Update remaining updatable fields
+    const otherUpdatableFields = [
+      'brand',
+      'model',
+      'manufacturingYear',
+      'fuelType',
+      'transmission',
+      'registrationDate',
+      'insuranceExpiryDate',
+      'warrantyExpiryDate',
+      'purchaseType'
+    ];
+
+    otherUpdatableFields.forEach((field) => {
       if (req.body[field] !== undefined) {
         vehicle[field] = req.body[field];
       }
     });
 
-    // Uppercase the vehicle number if provided
-    if (req.body.vehicleNumber) {
-      vehicle.vehicleNumber = req.body.vehicleNumber.toUpperCase().trim();
-    }
-
     const updatedVehicle = await vehicle.save();
     await updatedVehicle.populate('customer', 'fullName mobileNumber customerId');
     res.json(updatedVehicle);
   } catch (error) {
-    if (error.code === 11000) {
-      return res.status(400).json({ message: 'Vehicle number already registered to another vehicle' });
-    }
-    res.status(400).json({ message: error.message });
+    return handleDuplicateError(error, res);
   }
 };
 
@@ -289,6 +452,7 @@ export const lookupVehicleByRegNumber = async (req, res) => {
       customer: vehicle.customer,
       serviceInfo: {
         lastServiceDate: lastServiceHistory?.serviceDate || lastJobCard?.createdAt || null,
+        lastJobCardId: lastJobCard?._id || null,
         lastJobCardNumber: lastJobCard?.jobNumber || null,
         lastJobCardStatus: lastJobCard?.status || null,
         insuranceExpiryDate: vehicle.insuranceExpiryDate || null,

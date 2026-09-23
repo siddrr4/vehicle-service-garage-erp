@@ -39,7 +39,7 @@ export const getSalaryStructures = async (req, res) => {
     const structures = await SalaryStructure.find(filter)
       .populate('employee', 'fullName employeeId role specialization phone email status')
       .populate('createdBy', 'firstName lastName email')
-      .sort({ updatedAt: -1 })
+      .sort({ effectiveDate: -1, createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
@@ -73,7 +73,7 @@ export const getSalaryStructureByEmployee = async (req, res) => {
     }).populate('employee', 'fullName employeeId role specialization phone email status');
 
     const history = await SalaryStructure.find({ employee: employeeId })
-      .sort({ effectiveFrom: -1 })
+      .sort({ effectiveDate: -1, createdAt: -1 })
       .populate('createdBy', 'firstName lastName');
 
     res.json({
@@ -168,20 +168,59 @@ export const createSalaryStructure = async (req, res) => {
       }
     }
 
-    // 6. Validate effective date
+    // 6. Validate effective date and check for same-date duplicates
     const rawEffDate = req.body.effectiveDate || effectiveFrom || new Date();
     const effDate = new Date(rawEffDate);
     if (isNaN(effDate.getTime())) {
       return res.status(400).json({ message: 'Valid effective date is required' });
     }
 
+    const startOfDay = new Date(Date.UTC(effDate.getUTCFullYear(), effDate.getUTCMonth(), effDate.getUTCDate(), 0, 0, 0, 0));
+    const endOfDay = new Date(Date.UTC(effDate.getUTCFullYear(), effDate.getUTCMonth(), effDate.getUTCDate(), 23, 59, 59, 999));
+
+    // REQUIRED BUSINESS RULE: Prevent duplicate salary structures with the same employee and same effective date
+    const existingSameDate = await SalaryStructure.findOne({
+      employee: employeeId,
+      effectiveDate: { $gte: startOfDay, $lte: endOfDay },
+    });
+
+    if (existingSameDate) {
+      return res.status(400).json({
+        message: 'Salary structure already exists for this employee with the selected effective date.',
+      });
+    }
+
+    // Check if a chronologically later salary structure already exists for this employee
+    const existingLaterStructure = await SalaryStructure.findOne({
+      employee: employeeId,
+      effectiveDate: { $gt: endOfDay },
+    });
+
+    // Determine active status:
+    // If user explicitly requests isActive=false, respect it.
+    // If a strictly newer salary structure already exists, the newer one remains active, and this older record is inactive.
+    let willBeActive = isActive !== undefined ? Boolean(isActive) : true;
+    if (existingLaterStructure && !req.body.forceActive) {
+      willBeActive = false;
+    }
+
     // Enforce: only 1 active salary structure per employee at any given time
-    // Deactivate previous active salary structure while preserving historical records
-    if (isActive) {
+    // If this new structure will be active, deactivate all previous active structures
+    if (willBeActive) {
       await SalaryStructure.updateMany(
         { employee: employeeId, isActive: true },
         { isActive: false }
       );
+    } else {
+      // If willBeActive is false, check if the employee has ANY active salary structure.
+      // If no active structure exists, make the latest one active.
+      const currentActiveCount = await SalaryStructure.countDocuments({
+        employee: employeeId,
+        isActive: true,
+      });
+      if (currentActiveCount === 0 && !existingLaterStructure) {
+        willBeActive = true;
+      }
     }
 
     const structure = new SalaryStructure({
@@ -192,9 +231,9 @@ export const createSalaryStructure = async (req, res) => {
       allowanceItems,
       deductions: dedNum,
       deductionItems,
-      effectiveFrom: effDate,
-      effectiveDate: effDate,
-      isActive: Boolean(isActive),
+      effectiveFrom: startOfDay,
+      effectiveDate: startOfDay,
+      isActive: willBeActive,
       remarks,
       createdBy: req.user._id,
     });
@@ -267,25 +306,69 @@ export const updateSalaryStructure = async (req, res) => {
     }
 
     if (salaryType) structure.salaryType = salaryType;
-    if (effectiveFrom) {
-      structure.effectiveFrom = effectiveFrom;
-      structure.effectiveDate = effectiveFrom;
+
+    // Check effective date update and prevent duplicates
+    const newEffDate = req.body.effectiveDate || effectiveFrom;
+    if (newEffDate) {
+      const parsedDate = new Date(newEffDate);
+      if (isNaN(parsedDate.getTime())) {
+        return res.status(400).json({ message: 'Valid effective date is required' });
+      }
+      const startOfDay = new Date(Date.UTC(parsedDate.getUTCFullYear(), parsedDate.getUTCMonth(), parsedDate.getUTCDate(), 0, 0, 0, 0));
+      const endOfDay = new Date(Date.UTC(parsedDate.getUTCFullYear(), parsedDate.getUTCMonth(), parsedDate.getUTCDate(), 23, 59, 59, 999));
+
+      const duplicate = await SalaryStructure.findOne({
+        employee: structure.employee,
+        _id: { $ne: structure._id },
+        effectiveDate: { $gte: startOfDay, $lte: endOfDay },
+      });
+
+      if (duplicate) {
+        return res.status(400).json({
+          message: 'Salary structure already exists for this employee with the selected effective date.',
+        });
+      }
+
+      structure.effectiveDate = startOfDay;
+      structure.effectiveFrom = startOfDay;
     }
-    if (req.body.effectiveDate) {
-      structure.effectiveDate = req.body.effectiveDate;
-      structure.effectiveFrom = req.body.effectiveDate;
-    }
+
     if (remarks !== undefined) structure.remarks = remarks;
 
+    // Active status management:
+    // Ensure: Active salary structures <= 1 per employee
+    // Prevent accidentally deactivating all salary structures for an employee
     if (isActive !== undefined) {
-      if (isActive && !structure.isActive) {
-        // Deactivate other active structures for this employee
+      const targetActive = Boolean(isActive);
+
+      if (targetActive) {
+        // Activating this structure: deactivate all other structures for this employee
         await SalaryStructure.updateMany(
           { employee: structure.employee, _id: { $ne: structure._id }, isActive: true },
           { isActive: false }
         );
+        structure.isActive = true;
+      } else if (structure.isActive && !targetActive) {
+        // Requested to deactivate the currently active structure
+        // Find another structure for this employee to fall back to
+        const otherStructure = await SalaryStructure.findOne({
+          employee: structure.employee,
+          _id: { $ne: structure._id },
+        }).sort({ effectiveDate: -1, createdAt: -1 });
+
+        if (!otherStructure) {
+          return res.status(400).json({
+            message: 'Cannot deactivate the only salary structure for an employee.',
+          });
+        }
+
+        // Deactivate this structure and designate the latest other structure as active
+        structure.isActive = false;
+        otherStructure.isActive = true;
+        await otherStructure.save();
+      } else {
+        structure.isActive = targetActive;
       }
-      structure.isActive = isActive;
     }
 
     structure.updatedBy = req.user._id;
@@ -312,17 +395,34 @@ export const toggleSalaryStructureStatus = async (req, res) => {
       return res.status(404).json({ message: 'Salary structure not found' });
     }
 
-    const newStatus = !structure.isActive;
-
-    if (newStatus) {
-      // Activating: deactivate any other active structures for this employee
+    if (!structure.isActive) {
+      // Activating this structure:
+      // Deactivate any other active structures for this employee
       await SalaryStructure.updateMany(
         { employee: structure.employee, _id: { $ne: structure._id }, isActive: true },
         { isActive: false }
       );
+      structure.isActive = true;
+    } else {
+      // Attempting to deactivate the current active structure:
+      // Check if there are other structures for this employee to fall back to
+      const otherStructure = await SalaryStructure.findOne({
+        employee: structure.employee,
+        _id: { $ne: structure._id },
+      }).sort({ effectiveDate: -1, createdAt: -1 });
+
+      if (!otherStructure) {
+        return res.status(400).json({
+          message: 'Cannot deactivate the only salary structure for an employee.',
+        });
+      }
+
+      // Promote the latest other structure to Active and deactivate this one
+      structure.isActive = false;
+      otherStructure.isActive = true;
+      await otherStructure.save();
     }
 
-    structure.isActive = newStatus;
     structure.updatedBy = req.user._id;
     await structure.save();
 
@@ -355,8 +455,150 @@ export const deleteSalaryStructure = async (req, res) => {
       });
     }
 
+    const empId = structure.employee;
+    const wasActive = structure.isActive;
+
     await structure.deleteOne();
+
+    // If deleted structure was active, promote the newest remaining structure to active
+    if (wasActive) {
+      const remainingLatest = await SalaryStructure.findOne({ employee: empId })
+        .sort({ effectiveDate: -1, createdAt: -1 });
+      if (remainingLatest) {
+        remainingLatest.isActive = true;
+        await remainingLatest.save();
+      }
+    }
+
     res.json({ message: 'Salary structure removed successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Get duplicate salary structures report
+// @route   GET /api/salary/duplicates
+// @access  Private (Admin)
+export const getDuplicateSalaryStructures = async (req, res) => {
+  try {
+    const structures = await SalaryStructure.find()
+      .populate('employee', 'fullName employeeId status')
+      .sort({ employee: 1, effectiveDate: -1, createdAt: -1 });
+
+    const employeeMap = new Map();
+    structures.forEach((s) => {
+      if (!s.employee) return;
+      const empId = s.employee._id.toString();
+      if (!employeeMap.has(empId)) {
+        employeeMap.set(empId, {
+          employee: s.employee,
+          records: [],
+        });
+      }
+      employeeMap.get(empId).records.push(s);
+    });
+
+    const duplicateGroups = [];
+    for (const [empId, { employee, records }] of employeeMap.entries()) {
+      const dateMap = new Map();
+      records.forEach((r) => {
+        const dateKey = r.effectiveDate ? new Date(r.effectiveDate).toISOString().split('T')[0] : 'unknown';
+        if (!dateMap.has(dateKey)) {
+          dateMap.set(dateKey, []);
+        }
+        dateMap.get(dateKey).push(r);
+      });
+
+      for (const [dateKey, sameDateRecords] of dateMap.entries()) {
+        if (sameDateRecords.length > 1) {
+          duplicateGroups.push({
+            employee,
+            effectiveDate: dateKey,
+            count: sameDateRecords.length,
+            records: sameDateRecords,
+          });
+        }
+      }
+    }
+
+    res.json({
+      totalDuplicateGroups: duplicateGroups.length,
+      duplicateGroups,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Safe cleanup of duplicate salary structures (normalizes active status without deleting data)
+// @route   POST /api/salary/cleanup-duplicates
+// @access  Private (Admin)
+export const cleanupSalaryDuplicatesHandler = async (req, res) => {
+  try {
+    const structures = await SalaryStructure.find()
+      .populate('employee', 'fullName employeeId status')
+      .sort({ employee: 1, effectiveDate: -1, createdAt: -1 });
+
+    const employeeMap = new Map();
+    structures.forEach((s) => {
+      if (!s.employee) return;
+      const empId = s.employee._id.toString();
+      if (!employeeMap.has(empId)) {
+        employeeMap.set(empId, {
+          employee: s.employee,
+          records: [],
+        });
+      }
+      employeeMap.get(empId).records.push(s);
+    });
+
+    let duplicateCount = 0;
+    let normalizedCount = 0;
+
+    for (const [empId, { employee, records }] of employeeMap.entries()) {
+      // Find chronologically latest record
+      const sortedRecords = [...records].sort((a, b) => {
+        const dateA = new Date(a.effectiveDate || a.effectiveFrom || 0).getTime();
+        const dateB = new Date(b.effectiveDate || b.effectiveFrom || 0).getTime();
+        if (dateB !== dateA) return dateB - dateA;
+        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+      });
+
+      const latestRecord = sortedRecords[0];
+
+      // Check for same-date duplicates
+      const dateMap = new Map();
+      records.forEach((r) => {
+        const dateKey = r.effectiveDate ? new Date(r.effectiveDate).toISOString().split('T')[0] : 'unknown';
+        if (!dateMap.has(dateKey)) dateMap.set(dateKey, []);
+        dateMap.get(dateKey).push(r);
+      });
+
+      for (const sameDateRecords of dateMap.values()) {
+        if (sameDateRecords.length > 1) {
+          duplicateCount += (sameDateRecords.length - 1);
+        }
+      }
+
+      // Safe update: make latest record Active, older records Inactive. No deletion.
+      for (const rec of records) {
+        const isLatest = rec._id.toString() === latestRecord._id.toString();
+        if (rec.isActive !== isLatest) {
+          await SalaryStructure.findByIdAndUpdate(rec._id, {
+            isActive: isLatest,
+            updatedBy: req.user?._id || rec.createdBy,
+          });
+          normalizedCount++;
+        }
+      }
+    }
+
+    res.json({
+      message: 'Salary structures normalized successfully without deleting historical records.',
+      duplicateRecordsIdentified: duplicateCount,
+      recordsNormalized: normalizedCount,
+      deletedCount: 0,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
