@@ -1,0 +1,486 @@
+/* ==========================================================================
+   GARAGE ERP - ADMIN DASHBOARD DARK AUTOMOTIVE DESIGN SYSTEM
+   Palette:
+     Primary Background:   #080B0A
+     Secondary Background: #101412
+     Card Background:      #111614
+     Elevated Card:        #151A17
+     Gold Primary:         #D9A83E
+     Gold Highlight:       #F2C75C
+     White:                #FFFFFF
+     Secondary Text:       #A7B0AA
+     Border:               rgba(217, 168, 62, 0.22)
+     Border Subtle:        rgba(217, 168, 62, 0.12)
+   ========================================================================== */
+
+.admin-dashboard-container {
+  color: #A7B0AA;
+  min-height: 100%;
+  position: relative;
+}
+
+/* Ambient Subtle Gold Radial Glow */
+.admin-dashboard-container::before {
+  content: "";
+  position: absolute;
+  top: -50px;
+  right: 10%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(217, 168, 62, 0.04) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Typography & Gold Accents */
+.admin-dashboard-container h1,
+.admin-dashboard-container h2,
+.admin-dashboard-container h3,
+.admin-dashboard-container h4,
+.admin-dashboard-container h5,
+.admin-dashboard-container h6 {
+  color: #FFFFFF;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.admin-dashboard-container .text-gold {
+  color: #F2C75C !important;
+}
+
+.admin-dashboard-container .text-gold-primary {
+  color: #D9A83E !important;
+}
+
+.admin-dashboard-container .text-muted-gray {
+  color: #A7B0AA !important;
+}
+
+.admin-dashboard-container .gold-link {
+  color: #D9A83E;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.85rem;
+  transition: all 0.2s ease;
+}
+
+.admin-dashboard-container .gold-link:hover {
+  color: #F2C75C;
+  transform: translateX(2px);
+}
+
+/* Header & Action Buttons */
+.admin-dashboard-container .dash-title {
+  font-size: 1.85rem;
+  font-weight: 800;
+  color: #FFFFFF;
+  line-height: 1.2;
+}
+
+.admin-dashboard-container .dash-subtitle {
+  font-size: 0.85rem;
+  color: #A7B0AA;
+}
+
+.admin-dashboard-container .btn-dash-primary {
+  background: linear-gradient(135deg, #F2C75C 0%, #D9A83E 100%);
+  color: #080B0A !important;
+  font-weight: 700;
+  font-size: 0.875rem;
+  border: none;
+  border-radius: 10px;
+  padding: 0.6rem 1.25rem;
+  box-shadow: 0 4px 15px rgba(217, 168, 62, 0.25);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+  transition: all 0.25s ease;
+}
+
+.admin-dashboard-container .btn-dash-primary:hover {
+  background: linear-gradient(135deg, #FFF0C2 0%, #F2C75C 100%);
+  color: #050706 !important;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(217, 168, 62, 0.38);
+}
+
+.admin-dashboard-container .btn-dash-secondary {
+  background: #151A17;
+  border: 1.5px solid rgba(217, 168, 62, 0.45);
+  color: #FFFFFF !important;
+  font-weight: 600;
+  font-size: 0.875rem;
+  border-radius: 10px;
+  padding: 0.6rem 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+  transition: all 0.25s ease;
+}
+
+.admin-dashboard-container .btn-dash-secondary:hover {
+  border-color: #F2C75C;
+  color: #F2C75C !important;
+  background: rgba(217, 168, 62, 0.1);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(217, 168, 62, 0.15);
+}
+
+.admin-dashboard-container .btn-dash-refresh {
+  background: #111614;
+  border: 1px solid rgba(217, 168, 62, 0.25);
+  color: #A7B0AA;
+  font-weight: 600;
+  font-size: 0.875rem;
+  border-radius: 10px;
+  padding: 0.6rem 1.15rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.25s ease;
+}
+
+.admin-dashboard-container .btn-dash-refresh:hover {
+  color: #FFFFFF;
+  border-color: #D9A83E;
+  background: #151A17;
+  transform: translateY(-1px);
+}
+
+/* ==========================================================================
+   TODAY'S OVERVIEW CARDS (4 KPIs)
+   ========================================================================== */
+.admin-dashboard-container .overview-kpi-card {
+  background-color: #111614;
+  border: 1px solid rgba(217, 168, 62, 0.22);
+  border-radius: 16px;
+  padding: 1.35rem 1.35rem;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
+  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.admin-dashboard-container .overview-kpi-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(217, 168, 62, 0.45);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.65), 0 0 15px rgba(217, 168, 62, 0.1);
+}
+
+.admin-dashboard-container .kpi-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #A7B0AA;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.35rem;
+}
+
+.admin-dashboard-container .kpi-value {
+  font-size: 1.85rem;
+  font-weight: 800;
+  color: #FFFFFF;
+  line-height: 1.15;
+  margin-bottom: 0;
+  letter-spacing: -0.02em;
+}
+
+.admin-dashboard-container .kpi-icon-box {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(217, 168, 62, 0.16) 0%, rgba(217, 168, 62, 0.04) 100%);
+  border: 1px solid rgba(217, 168, 62, 0.28);
+  color: #F2C75C;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.admin-dashboard-container .kpi-footer {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(217, 168, 62, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.775rem;
+}
+
+.admin-dashboard-container .kpi-trend {
+  font-weight: 600;
+}
+
+.admin-dashboard-container .kpi-subtext {
+  color: #8E9891;
+}
+
+/* ==========================================================================
+   JOB CARD OVERVIEW PANEL
+   ========================================================================== */
+.admin-dashboard-container .dark-card {
+  background-color: #111614;
+  border: 1px solid rgba(217, 168, 62, 0.22);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  margin-bottom: 1.5rem;
+}
+
+.admin-dashboard-container .dark-card-header {
+  background-color: transparent;
+  border-bottom: 1px solid rgba(217, 168, 62, 0.15);
+  padding: 1.15rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.admin-dashboard-container .job-stat-card {
+  background-color: #151A17;
+  border-radius: 12px;
+  padding: 1.15rem 1rem;
+  text-align: center;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.admin-dashboard-container .job-stat-card:hover {
+  transform: translateY(-2px);
+}
+
+.admin-dashboard-container .job-stat-open {
+  border: 1px solid rgba(217, 168, 62, 0.35);
+}
+.admin-dashboard-container .job-stat-open .stat-tag {
+  color: #D9A83E;
+}
+
+.admin-dashboard-container .job-stat-progress {
+  border: 1px solid rgba(59, 130, 246, 0.35);
+}
+.admin-dashboard-container .job-stat-progress .stat-tag {
+  color: #60A5FA;
+}
+
+.admin-dashboard-container .job-stat-parts {
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+.admin-dashboard-container .job-stat-parts .stat-tag {
+  color: #FBBF24;
+}
+
+.admin-dashboard-container .job-stat-completed {
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+.admin-dashboard-container .job-stat-completed .stat-tag {
+  color: #34D399;
+}
+
+.admin-dashboard-container .job-stat-card .stat-tag {
+  font-size: 0.725rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: block;
+}
+
+.admin-dashboard-container .job-stat-card .stat-count {
+  font-size: 1.85rem;
+  font-weight: 800;
+  color: #FFFFFF;
+  margin: 0.25rem 0;
+  line-height: 1.1;
+}
+
+.admin-dashboard-container .job-stat-card .stat-desc {
+  font-size: 0.75rem;
+  color: #8E9891;
+  display: block;
+}
+
+/* ==========================================================================
+   TODAY'S APPOINTMENT SCHEDULE & TABLES
+   ========================================================================== */
+.admin-dashboard-container .dark-table {
+  color: #A7B0AA;
+  margin-bottom: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.admin-dashboard-container .dark-table th {
+  background-color: #151A17 !important;
+  color: #D9A83E !important;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid rgba(217, 168, 62, 0.2) !important;
+  border-top: none;
+  padding: 0.95rem 1.25rem;
+  white-space: nowrap;
+}
+
+.admin-dashboard-container .dark-table td {
+  background-color: #111614 !important;
+  color: #A7B0AA !important;
+  border-bottom: 1px solid rgba(217, 168, 62, 0.08) !important;
+  border-top: none;
+  padding: 0.9rem 1.25rem;
+  vertical-align: middle;
+}
+
+.admin-dashboard-container .dark-table tbody tr:hover td {
+  background-color: #18201C !important;
+  color: #FFFFFF !important;
+}
+
+.admin-dashboard-container .time-slot-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background-color: #151A17;
+  border: 1px solid rgba(217, 168, 62, 0.25);
+  color: #F2C75C;
+  font-weight: 700;
+  font-size: 0.775rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 8px;
+}
+
+.admin-dashboard-container .booking-type-badge {
+  background-color: rgba(217, 168, 62, 0.1);
+  border: 1px solid rgba(217, 168, 62, 0.2);
+  color: #D9A83E;
+  font-size: 0.65rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  margin-left: 0.5rem;
+  font-weight: 600;
+}
+
+/* Recharts Customization */
+.admin-dashboard-container .recharts-default-tooltip {
+  background-color: #151A17 !important;
+  border: 1px solid rgba(217, 168, 62, 0.3) !important;
+  border-radius: 8px !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.6) !important;
+}
+
+.admin-dashboard-container .recharts-tooltip-item {
+  color: #FFFFFF !important;
+}
+
+.admin-dashboard-container .recharts-legend-item-text {
+  color: #A7B0AA !important;
+}
+
+/* Mechanic Availability Boxes */
+.admin-dashboard-container .mechanic-stat-box {
+  background-color: #151A17;
+  border: 1px solid rgba(217, 168, 62, 0.15);
+  border-radius: 10px;
+  padding: 0.75rem 0.5rem;
+  text-align: center;
+}
+
+.admin-dashboard-container .mechanic-stat-box.box-checked {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.05);
+}
+
+.admin-dashboard-container .mechanic-stat-box.box-busy {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.05);
+}
+
+/* Waiting Queue Accent */
+.admin-dashboard-container .waiting-queue-card {
+  border-left: 4px solid #D9A83E !important;
+}
+
+.admin-dashboard-container .queue-num-badge {
+  background: #151A17;
+  border: 1px solid rgba(217, 168, 62, 0.35);
+  color: #F2C75C;
+  font-weight: 800;
+  padding: 0.25rem 0.65rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+}
+
+/* Empty State Dark Mode Styling */
+.admin-dashboard-container .dark-empty-box {
+  background-color: rgba(17, 22, 20, 0.6);
+  border: 1px dashed rgba(217, 168, 62, 0.25);
+  border-radius: 14px;
+  padding: 3rem 1.5rem;
+  text-align: center;
+}
+
+.admin-dashboard-container .dark-empty-icon {
+  width: 60px;
+  height: 60px;
+  background-color: #151A17;
+  border: 1px solid rgba(217, 168, 62, 0.25);
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #D9A83E;
+  margin-bottom: 1rem;
+}
+
+/* Badges for Dark Theme */
+.admin-dashboard-container .badge-gold {
+  background-color: rgba(217, 168, 62, 0.15);
+  border: 1px solid rgba(217, 168, 62, 0.35);
+  color: #F2C75C;
+  font-weight: 600;
+}
+
+.admin-dashboard-container .badge-green {
+  background-color: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #34D399;
+  font-weight: 600;
+}
+
+.admin-dashboard-container .badge-amber {
+  background-color: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #FBBF24;
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   RESPONSIVENESS
+   ========================================================================== */
+@media (max-width: 991px) {
+  .admin-dashboard-container .dash-title {
+    font-size: 1.5rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .admin-dashboard-container .dash-title {
+    font-size: 1.35rem;
+  }
+  .admin-dashboard-container .btn-dash-primary,
+  .admin-dashboard-container .btn-dash-secondary,
+  .admin-dashboard-container .btn-dash-refresh {
+    width: 100%;
+    justify-content: center;
+  }
+}
