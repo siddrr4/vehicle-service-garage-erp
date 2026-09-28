@@ -8,8 +8,8 @@ const ProtectedRoute = ({ allowedRoles }) => {
 
   if (loading) {
     return (
-      <div className="d-flex justify-content-center align-items-center" style={{ height: '100vh' }}>
-        <Spinner animation="border" variant="orange" />
+      <div className="d-flex justify-content-center align-items-center" style={{ height: '100vh', backgroundColor: '#080B0A' }}>
+        <Spinner animation="border" style={{ color: '#D9A83E', width: '3rem', height: '3rem' }} />
       </div>
     );
   }

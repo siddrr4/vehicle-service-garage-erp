@@ -74,7 +74,10 @@ const JobCardDetails = () => {
     } catch (error) {
       toast.error('Failed to load job card details or requests');
       setLoading(false);
-      navigate('/job-cards');
+      const fallback = (user?.role === 'admin' || user?.role === 'advisor')
+        ? '/job-cards'
+        : (user?.role === 'mechanic' ? '/mechanic-jobs' : '/my-job-cards');
+      navigate(fallback);
     }
   };
 
@@ -270,6 +273,7 @@ const JobCardDetails = () => {
 
   const isAdmin = user?.role === 'admin' || user?.role === 'advisor';
   const isMechanic = user?.role === 'mechanic';
+  const backPath = isAdmin ? '/job-cards' : (isMechanic ? '/mechanic-jobs' : '/my-job-cards');
 
   // Billing calculations: use parts snapshotted in jobCard.partsUsed (which is synced dynamically with issues/returns)
   const laborCost = jobCard.estimatedCost || 0;
@@ -289,7 +293,7 @@ const JobCardDetails = () => {
       {/* Top Navigation Row */}
       <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
         <div className="d-flex align-items-center gap-3">
-          <Link to={isAdmin ? "/job-cards" : "/my-job-cards"} className="btn btn-light border btn-sm text-muted">
+          <Link to={backPath} className="btn btn-light border btn-sm text-muted" title={isMechanic ? "Back to Assigned Jobs" : (isAdmin ? "Back to Job Cards" : "Back to My Job Cards")}>
             <FaArrowLeft />
           </Link>
           <div>

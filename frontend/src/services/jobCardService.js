@@ -7,8 +7,8 @@ export const getJobCards = async (page = 1, limit = 10, keyword = '', status = '
   return data;
 };
 
-export const getMyJobCards = async () => {
-  const { data } = await api.get('/job-cards/my-job-cards');
+export const getMyJobCards = async (config = {}) => {
+  const { data } = await api.get('/job-cards/my-job-cards', config);
   return data;
 };
 

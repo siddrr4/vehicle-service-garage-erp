@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
-  BsCarFront, BsCalendarCheck, BsClockHistory, BsCardText, BsReceipt, BsJournalText,
+  BsCalendarCheck, BsSpeedometer2, BsBoxSeam, BsReceipt, BsBuildings,
+  BsCarFront, BsClockHistory, BsCardText, BsJournalText,
   BsShieldCheck, BsLightningCharge, BsGeoAlt, BsFileEarmarkText, BsCalendarPlus, BsCloudCheck,
-  BsPeople, BsBox, BsClipboardData, BsBell, BsStarFill, BsTelephone, BsEnvelope,
-  BsClock, BsFacebook, BsTwitter, BsInstagram, BsLinkedin, BsArrowRight, BsCheckCircleFill
+  BsTelephone, BsEnvelope, BsClock, BsFacebook, BsTwitter, BsInstagram, BsLinkedin,
+  BsArrowRight, BsChevronDown, BsCheckCircleFill
 } from 'react-icons/bs';
-import { FaCar, FaWrench, FaShieldAlt, FaCalendarAlt, FaFileInvoiceDollar, FaUsers } from 'react-icons/fa';
+import { FaCar, FaWrench, FaFileInvoiceDollar, FaUsers, FaBars, FaTimes, FaShieldAlt } from 'react-icons/fa';
+import workshopHeroImg from '../assets/workshop_hero.jpg';
 import './LandingPage.css';
 
 const LandingPage = () => {
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -21,45 +24,69 @@ const LandingPage = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  const closeMobileMenu = () => setMobileMenuOpen(false);
+
   return (
     <div className="landing-page">
-      {/* SECTION 1: Top Navigation */}
+      {/* SECTION 1: Top Navigation Bar */}
       <nav className={`navbar navbar-expand-lg fixed-top modern-navbar ${scrolled ? 'scrolled' : ''}`}>
         <div className="container">
-          <Link className="navbar-brand d-flex align-items-center gap-2" to="/">
-            <div className="bg-orange p-2 rounded-2 text-white d-flex align-items-center justify-content-center" style={{ width: '36px', height: '36px' }}>
-              <FaCar size={18} />
+          <Link className="navbar-brand d-flex align-items-center gap-2" to="/" onClick={closeMobileMenu}>
+            <div className="brand-logo-icon">
+              <FaCar size={17} />
             </div>
-            <span>GARAGE ERP</span>
+            <span className="brand-text">
+              GARAGE <span className="brand-text-gold">ERP</span>
+            </span>
           </Link>
-          
+
+          {/* Mobile Hamburger Toggle */}
           <button 
-            className="navbar-toggler border-0 text-white" 
-            type="button" 
-            data-bs-toggle="collapse" 
-            data-bs-target="#navbarNav"
-            aria-controls="navbarNav"
-            aria-expanded="false"
+            className="navbar-toggler mobile-toggle-btn border-0 text-white" 
+            type="button"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label="Toggle navigation"
           >
-            <span className="navbar-toggler-icon" style={{ filter: 'invert(1)' }}></span>
+            {mobileMenuOpen ? <FaTimes size={20} /> : <FaBars size={20} />}
           </button>
-          
-          <div className="collapse navbar-collapse" id="navbarNav">
+
+          {/* Navigation Links & Action Buttons */}
+          <div className={`collapse navbar-collapse ${mobileMenuOpen ? 'show' : ''}`} id="navbarNav">
             <ul className="navbar-nav mx-auto">
-              <li className="nav-item"><a className="nav-link" href="#home">Home</a></li>
-              <li className="nav-item"><a className="nav-link" href="#features">Features</a></li>
-              <li className="nav-item"><a className="nav-link" href="#workflow">Workflow</a></li>
-              <li className="nav-item"><a className="nav-link" href="#enterprise-value">Enterprise</a></li>
-              <li className="nav-item"><a className="nav-link" href="#modules">ERP Modules</a></li>
-              <li className="nav-item"><a className="nav-link" href="#faq">FAQ</a></li>
-              <li className="nav-item"><a className="nav-link" href="#contact">Contact</a></li>
+              <li className="nav-item">
+                <a className="nav-link" href="#home" onClick={closeMobileMenu}>Home</a>
+              </li>
+              <li className="nav-item">
+                <a className="nav-link" href="#features" onClick={closeMobileMenu}>Features</a>
+              </li>
+              <li className="nav-item">
+                <a className="nav-link" href="#workflow" onClick={closeMobileMenu}>Workflow</a>
+              </li>
+              <li className="nav-item">
+                <a className="nav-link" href="#enterprise-value" onClick={closeMobileMenu}>Enterprise</a>
+              </li>
+              <li className="nav-item">
+                <a className="nav-link" href="#modules" onClick={closeMobileMenu}>ERP Modules</a>
+              </li>
+              <li className="nav-item">
+                <a className="nav-link" href="#faq" onClick={closeMobileMenu}>FAQ</a>
+              </li>
+              <li className="nav-item">
+                <a className="nav-link" href="#contact" onClick={closeMobileMenu}>Contact</a>
+              </li>
             </ul>
-            <div className="d-flex gap-2 align-items-center">
-              <button className="btn btn-outline-light btn-sm px-3" onClick={() => navigate('/login')}>
+
+            <div className="nav-action-buttons d-flex gap-2 align-items-center">
+              <button 
+                className="btn btn-ghost-dark btn-sm px-3" 
+                onClick={() => { closeMobileMenu(); navigate('/login'); }}
+              >
                 Sign In
               </button>
-              <button className="btn btn-orange btn-sm px-3" onClick={() => navigate('/register')}>
+              <button 
+                className="btn btn-gold btn-sm px-3" 
+                onClick={() => { closeMobileMenu(); navigate('/register'); }}
+              >
                 Register
               </button>
             </div>
@@ -69,41 +96,154 @@ const LandingPage = () => {
 
       {/* SECTION 2: Hero Section */}
       <section id="home" className="hero-section">
-        <div className="container position-relative z-1">
-          <div className="row align-items-center min-vh-100 pt-4 pb-4">
-            <div className="col-lg-6 mb-5 mb-lg-0 text-start">
-              <div className="hero-badge">
-                <FaCar /> Automotive Service & Workshop ERP
+        <div className="container">
+          {/* Main Hero Outer Frame */}
+          <div className="hero-outer-card">
+            <div className="row g-0 align-items-stretch">
+              {/* Left Column: Heading, Supporting Text, and CTA Buttons */}
+              <div className="col-lg-7 col-xl-7 hero-content-col d-flex flex-column justify-content-center">
+                <div className="hero-inner-padding">
+                  <div className="hero-badge">
+                    <span className="badge-dot"></span>
+                    Automotive Service & Workshop ERP
+                  </div>
+
+                  <h1 className="hero-title">
+                    Powering Modern <br />
+                    <span className="hero-title-gold">Vehicle Workshops</span>
+                  </h1>
+
+                  <p className="hero-lead">
+                    Streamline operations, improve efficiency, and deliver better service with our all-in-one garage ERP system.
+                  </p>
+
+                  <div className="hero-cta-group d-flex flex-wrap gap-3">
+                    <button 
+                      className="btn btn-gold btn-lg px-4 d-inline-flex align-items-center gap-2"
+                      onClick={() => navigate('/register')}
+                    >
+                      <span>Get Started</span>
+                      <BsArrowRight className="hero-arrow-icon" />
+                    </button>
+                    <button 
+                      className="btn btn-outline-gold btn-lg px-4"
+                      onClick={() => navigate('/login')}
+                    >
+                      Book Service
+                    </button>
+                    <button 
+                      className="btn btn-outline-danger btn-lg px-3 d-inline-flex align-items-center gap-2"
+                      onClick={() => navigate('/roadside-assistance')}
+                      style={{ borderColor: 'rgba(239, 68, 68, 0.6)', color: '#F87171' }}
+                    >
+                      <span>🚨 Roadside Assistance (20 km)</span>
+                    </button>
+                  </div>
+
+                  {/* Trust Micro-Metrics */}
+                  <div className="hero-micro-metrics d-flex flex-wrap gap-4 pt-4 mt-3">
+                    <div className="micro-metric-item">
+                      <span className="micro-metric-val">5,000+</span>
+                      <span className="micro-metric-lbl">Services Completed</span>
+                    </div>
+                    <div className="micro-metric-divider"></div>
+                    <div className="micro-metric-item">
+                      <span className="micro-metric-val">100%</span>
+                      <span className="micro-metric-lbl">GST-Ready Invoicing</span>
+                    </div>
+                    <div className="micro-metric-divider"></div>
+                    <div className="micro-metric-item">
+                      <span className="micro-metric-val">99.4%</span>
+                      <span className="micro-metric-lbl">Workshop Uptime</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <h1 className="hero-title mb-3">
-                Intelligent Vehicle Service & Garage Management
-              </h1>
-              <p className="hero-lead mb-4 pe-lg-4">
-                Streamline workshop appointments, live technician bays, digital repair job cards, spare parts inventory, and tax invoicing from one centralized enterprise system.
-              </p>
-              <div className="d-flex flex-wrap gap-3">
-                <button 
-                  className="btn btn-orange btn-lg px-4 shadow"
-                  onClick={() => navigate('/register')}
-                >
-                  GET STARTED
-                </button>
-                <button 
-                  className="btn btn-outline-light btn-lg px-4"
-                  onClick={() => navigate('/login')}
-                >
-                  Book Service
-                </button>
+
+              {/* Right Column: Mechanic Working on Vehicle Image + Diagonal Separation + Vertical Message */}
+              <div className="col-lg-5 col-xl-5 hero-visual-col position-relative">
+                <div className="hero-image-wrapper">
+                  <img 
+                    src={workshopHeroImg} 
+                    alt="Mechanic working on vehicle engine bay" 
+                    className="hero-mechanic-img"
+                  />
+                  {/* Subtle Cinematic Overlays & Diagonal Gold Separator Line */}
+                  <div className="hero-image-cinematic-overlay"></div>
+                  <div className="hero-image-diagonal-mask"></div>
+                  <div className="hero-diagonal-gold-line"></div>
+
+                  {/* Right-Side Vertical Tagline Message */}
+                  <div className="hero-vertical-tagline" aria-label="Brand Motto">
+                    <div className="tagline-gold-line"></div>
+                    <div className="tagline-text-wrap">
+                      <span>Smart</span>
+                      <span>Service</span>
+                      <span>Stronger</span>
+                      <span>Business</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-            
-            <div className="col-lg-6">
-              <div className="hero-img-container">
-                <img 
-                  src="https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80" 
-                  alt="Modern Automotive Service Center" 
-                  className="img-fluid"
-                />
+
+            {/* Feature Strip (5 Items Integrated Directly Below Hero Content) */}
+            <div className="hero-feature-strip">
+              <div className="feature-strip-grid">
+                {/* 1. Appointment Scheduling */}
+                <div className="feature-strip-card">
+                  <div className="feature-strip-icon-box">
+                    <BsCalendarCheck />
+                  </div>
+                  <div className="feature-strip-content">
+                    <h4 className="feature-strip-title">Appointment Scheduling</h4>
+                    <p className="feature-strip-desc">Smart appointment booking and scheduling.</p>
+                  </div>
+                </div>
+
+                {/* 2. Live Workshop Tracking */}
+                <div className="feature-strip-card">
+                  <div className="feature-strip-icon-box">
+                    <BsSpeedometer2 />
+                  </div>
+                  <div className="feature-strip-content">
+                    <h4 className="feature-strip-title">Live Workshop Tracking</h4>
+                    <p className="feature-strip-desc">Track workshop operations and mechanic availability.</p>
+                  </div>
+                </div>
+
+                {/* 3. Inventory Management */}
+                <div className="feature-strip-card">
+                  <div className="feature-strip-icon-box">
+                    <BsBoxSeam />
+                  </div>
+                  <div className="feature-strip-content">
+                    <h4 className="feature-strip-title">Inventory Management</h4>
+                    <p className="feature-strip-desc">Manage spare parts and stock levels.</p>
+                  </div>
+                </div>
+
+                {/* 4. Tax Invoicing */}
+                <div className="feature-strip-card">
+                  <div className="feature-strip-icon-box">
+                    <BsReceipt />
+                  </div>
+                  <div className="feature-strip-content">
+                    <h4 className="feature-strip-title">Tax Invoicing</h4>
+                    <p className="feature-strip-desc">Professional billing and GST-ready invoices.</p>
+                  </div>
+                </div>
+
+                {/* 5. Multi-branch Support */}
+                <div className="feature-strip-card">
+                  <div className="feature-strip-icon-box">
+                    <BsBuildings />
+                  </div>
+                  <div className="feature-strip-content">
+                    <h4 className="feature-strip-title">Multi-branch Support</h4>
+                    <p className="feature-strip-desc">Manage workshop operations efficiently.</p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -135,10 +275,14 @@ const LandingPage = () => {
       <section id="features" className="features-section">
         <span id="services" className="nav-anchor" aria-hidden="true" />
         <div className="container">
-          <div className="section-header-block">
-            <span className="section-tag section-tag-orange">Workshop Features</span>
-            <h2 className="section-title">Core Workshop Features</h2>
-            <p className="section-subtitle">Complete end-to-end digital toolset engineered specifically for modern multi-brand garages.</p>
+          <div className="section-header-block text-center">
+            <span className="section-tag">Workshop Features</span>
+            <h2 className="section-title">
+              Core Workshop <span className="gold-text">Features</span>
+            </h2>
+            <p className="section-subtitle">
+              Complete end-to-end digital toolset engineered specifically for modern multi-brand garages.
+            </p>
           </div>
           
           <div className="row g-4">
@@ -152,7 +296,7 @@ const LandingPage = () => {
             ].map((service, idx) => (
               <div className="col-md-6 col-lg-4" key={idx}>
                 <div className="enterprise-card feature-card">
-                  <div className="icon-box icon-box-orange">
+                  <div className="icon-box">
                     {service.icon}
                   </div>
                   <h4 className="feature-card-title">{service.title}</h4>
@@ -167,10 +311,14 @@ const LandingPage = () => {
       {/* SECTION 5: How It Works / Workflow */}
       <section id="workflow" className="workflow-section">
         <div className="container">
-          <div className="section-header-block">
-            <span className="section-tag section-tag-orange">Operational Flow</span>
-            <h2 className="section-title">How Garage ERP Works</h2>
-            <p className="section-subtitle">From initial booking to parts fulfillment, inspection, and customer invoice release.</p>
+          <div className="section-header-block text-center">
+            <span className="section-tag">Operational Flow</span>
+            <h2 className="section-title">
+              How Garage ERP <span className="gold-text">Works</span>
+            </h2>
+            <p className="section-subtitle">
+              From initial booking to parts fulfillment, inspection, and customer invoice release.
+            </p>
           </div>
 
           <div className="row g-3">
@@ -197,10 +345,14 @@ const LandingPage = () => {
       {/* SECTION 6: Why Choose Us / Enterprise Value */}
       <section id="enterprise-value" className="enterprise-value-section">
         <div className="container">
-          <div className="section-header-block">
-            <span className="section-tag section-tag-blue">Enterprise Value</span>
-            <h2 className="section-title">Engineered for Efficiency</h2>
-            <p className="section-subtitle">Enterprise-grade capabilities built for maximum uptime, accountability, and customer loyalty.</p>
+          <div className="section-header-block text-center">
+            <span className="section-tag">Enterprise Value</span>
+            <h2 className="section-title">
+              Engineered for <span className="gold-text">Efficiency</span>
+            </h2>
+            <p className="section-subtitle">
+              Enterprise-grade capabilities built for maximum uptime, accountability, and customer loyalty.
+            </p>
           </div>
           
           <div className="row g-4">
@@ -214,12 +366,12 @@ const LandingPage = () => {
             ].map((feature, idx) => (
               <div className="col-md-6 col-lg-4" key={idx}>
                 <div className="enterprise-card enterprise-value-card">
-                  <div className="icon-box icon-box-blue flex-shrink-0 mb-0">
+                  <div className="icon-box flex-shrink-0 mb-0">
                     {feature.icon}
                   </div>
                   <div>
-                    <h5 className="fw-bold text-navy fs-6 mb-1">{feature.title}</h5>
-                    <p className="text-muted small mb-0 lh-base">{feature.desc}</p>
+                    <h5 className="enterprise-value-title">{feature.title}</h5>
+                    <p className="enterprise-value-desc">{feature.desc}</p>
                   </div>
                 </div>
               </div>
@@ -229,28 +381,32 @@ const LandingPage = () => {
       </section>
 
       {/* SECTION 7: System Modules */}
-      <section id="modules" className="py-5 bg-white">
+      <section id="modules" className="modules-section">
         <div className="container py-4">
-          <div className="text-center mb-5" style={{ maxWidth: '680px', margin: '0 auto' }}>
+          <div className="section-header-block text-center">
             <span className="section-tag">All-In-One Platform</span>
-            <h2 className="section-title">Core ERP Modules</h2>
-            <p className="text-muted lead fs-6">Every component you need to operate a profitable automotive service facility.</p>
+            <h2 className="section-title">
+              Core ERP <span className="gold-text">Modules</span>
+            </h2>
+            <p className="section-subtitle">
+              Every component you need to operate a profitable automotive service facility.
+            </p>
           </div>
 
           <div className="row g-4">
             {[
-              { title: "Customer & Fleet CRM", icon: <FaUsers size={24} className="text-primary" />, desc: "Maintain owner profiles, contact details, and multi-vehicle garage portfolios." },
-              { title: "Workshop Job Cards", icon: <FaWrench size={24} className="text-warning" />, desc: "Full digital work orders with common service selector and status lifecycles." },
-              { title: "Spare Parts Inventory", icon: <BsBox size={24} className="text-success" />, desc: "Track stock, reorder thresholds, supplier pricing, and parts usage." },
-              { title: "Financials & Billing", icon: <FaFileInvoiceDollar size={24} className="text-info" />, desc: "Tax invoices, digital payment gateway integration, and balance tracking." },
-              { title: "Staff & Attendance", icon: <BsClock size={24} className="text-danger" />, desc: "IST-based check-in/out logging, mechanic bay status, and payroll calculations." },
-              { title: "Reports & Insights", icon: <BsClipboardData size={24} className="text-purple" />, desc: "Revenue analytics, service volume, parts consumption, and free service trends." }
+              { title: "Customer & Fleet CRM", icon: <FaUsers size={22} />, desc: "Maintain owner profiles, contact details, and multi-vehicle garage portfolios." },
+              { title: "Workshop Job Cards", icon: <FaWrench size={22} />, desc: "Full digital work orders with common service selector and status lifecycles." },
+              { title: "Spare Parts Inventory", icon: <BsBoxSeam size={22} />, desc: "Track stock, reorder thresholds, supplier pricing, and parts usage." },
+              { title: "Financials & Billing", icon: <FaFileInvoiceDollar size={22} />, desc: "Tax invoices, digital payment gateway integration, and balance tracking." },
+              { title: "Staff & Attendance", icon: <BsClock size={22} />, desc: "IST-based check-in/out logging, mechanic bay status, and payroll calculations." },
+              { title: "Reports & Insights", icon: <BsSpeedometer2 size={22} />, desc: "Revenue analytics, service volume, parts consumption, and free service trends." }
             ].map((mod, idx) => (
               <div className="col-md-6 col-lg-4" key={idx}>
-                <div className="enterprise-card border-top border-4 border-orange">
-                  <div className="mb-3">{mod.icon}</div>
-                  <h5 className="fw-bold text-navy fs-6 mb-2">{mod.title}</h5>
-                  <p className="text-muted small mb-0">{mod.desc}</p>
+                <div className="enterprise-card module-card">
+                  <div className="icon-box mb-3">{mod.icon}</div>
+                  <h5 className="module-card-title">{mod.title}</h5>
+                  <p className="module-card-desc">{mod.desc}</p>
                 </div>
               </div>
             ))}
@@ -259,21 +415,23 @@ const LandingPage = () => {
       </section>
 
       {/* SECTION 8: FAQ */}
-      <section id="faq" className="py-5" style={{ backgroundColor: '#F8FAFC' }}>
-        <div className="container py-4" style={{ maxWidth: '860px' }}>
-          <div className="text-center mb-5">
+      <section id="faq" className="faq-section">
+        <div className="container" style={{ maxWidth: '880px' }}>
+          <div className="section-header-block text-center">
             <span className="section-tag">Frequently Asked Questions</span>
-            <h2 className="section-title">Got Questions? We Have Answers</h2>
+            <h2 className="section-title">
+              Got Questions? <span className="gold-text">We Have Answers</span>
+            </h2>
           </div>
 
-          <div className="accordion" id="faqAccordion">
+          <div className="accordion custom-dark-accordion" id="faqAccordion">
             {[
               { q: "How does the mechanic capacity booking work?", a: "The ERP automatically calculates available bay slots per hour based on mechanics checked in today. When capacity is fully booked, customers can join the live waiting queue." },
               { q: "Can customers track their vehicle repair status online?", a: "Yes. Customers have a dedicated portal where they can view live job card status, diagnostic notes, advisor recommendations, and past service history." },
               { q: "Does the billing module support online payments?", a: "Yes. Invoices support integrated Razorpay payment gateway checkout (UPI, cards, net banking) with instant verification and printable tax invoices." },
               { q: "How does the system handle employee attendance and payroll?", a: "Attendance is recorded in Indian Standard Time (IST). Staff members not explicitly marked check-in default to Present without fake work hours. Monthly payroll calculates earned salary accurately without penalizing future dates." }
             ].map((item, idx) => (
-              <div className="accordion-item shadow-sm" key={idx}>
+              <div className="accordion-item" key={idx}>
                 <h2 className="accordion-header" id={`heading${idx}`}>
                   <button 
                     className={`accordion-button ${idx !== 0 ? 'collapsed' : ''}`} 
@@ -302,20 +460,29 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* SECTION 9: Contact & CTA */}
-      <section id="contact" className="py-5 bg-white">
-        <div className="container py-4">
-          <div className="bg-navy p-4 p-md-5 rounded-4 text-white text-center position-relative overflow-hidden">
-            <div className="position-relative z-1" style={{ maxWidth: '640px', margin: '0 auto' }}>
-              <h2 className="display-6 fw-bold mb-3 text-white">Ready to Modernize Your Automotive Workshop?</h2>
-              <p className="lead text-light opacity-75 mb-4 fs-6">
+      {/* SECTION 9: Contact & CTA Banner */}
+      <section id="contact" className="contact-cta-section">
+        <div className="container">
+          <div className="cta-banner-card">
+            <div className="cta-banner-content text-center">
+              <span className="section-tag mb-3">Get Started Today</span>
+              <h2 className="cta-title">
+                Ready to Modernize Your <span className="gold-text">Automotive Workshop?</span>
+              </h2>
+              <p className="cta-lead">
                 Start managing appointments, job cards, mechanics, inventory, and billing seamlessly today.
               </p>
               <div className="d-flex justify-content-center gap-3 flex-wrap">
-                <button className="btn btn-orange btn-lg px-4" onClick={() => navigate('/register')}>
+                <button 
+                  className="btn btn-gold btn-lg px-4" 
+                  onClick={() => navigate('/register')}
+                >
                   Create Free Account
                 </button>
-                <button className="btn btn-outline-light btn-lg px-4" onClick={() => navigate('/login')}>
+                <button 
+                  className="btn btn-outline-gold btn-lg px-4" 
+                  onClick={() => navigate('/login')}
+                >
                   Access Console
                 </button>
               </div>
@@ -330,12 +497,14 @@ const LandingPage = () => {
           <div className="row g-4 mb-5">
             <div className="col-lg-4">
               <div className="d-flex align-items-center gap-2 mb-3">
-                <div className="bg-orange p-2 rounded-2 text-white d-flex align-items-center justify-content-center" style={{ width: '32px', height: '32px' }}>
+                <div className="brand-logo-icon">
                   <FaCar size={16} />
                 </div>
-                <h5 className="mb-0 text-white fw-bold">GARAGE ERP</h5>
+                <h5 className="mb-0 text-white fw-bold">
+                  GARAGE <span className="gold-text">ERP</span>
+                </h5>
               </div>
-              <p className="text-muted small pe-lg-4 mb-4">
+              <p className="footer-desc pe-lg-4 mb-4">
                 Enterprise workshop management software empowering automotive garages and dealerships to deliver premier service efficiency.
               </p>
               <div className="d-flex gap-2">
@@ -347,45 +516,45 @@ const LandingPage = () => {
             </div>
 
             <div className="col-6 col-lg-2">
-              <h5>Navigation</h5>
-              <a href="#home">Home</a>
-              <a href="#features">Features</a>
-              <a href="#workflow">Workflow</a>
-              <a href="#enterprise-value">Enterprise</a>
-              <a href="#modules">ERP Modules</a>
+              <h5 className="footer-heading">Navigation</h5>
+              <a href="#home" className="footer-link">Home</a>
+              <a href="#features" className="footer-link">Features</a>
+              <a href="#workflow" className="footer-link">Workflow</a>
+              <a href="#enterprise-value" className="footer-link">Enterprise</a>
+              <a href="#modules" className="footer-link">ERP Modules</a>
             </div>
 
             <div className="col-6 col-lg-3">
-              <h5>System Portals</h5>
-              <Link to="/login">Administrator Console</Link>
-              <Link to="/login">Service Advisor Desk</Link>
-              <Link to="/login">Technician Workbench</Link>
-              <Link to="/login">Customer Portal</Link>
-              <Link to="/register">Create Account</Link>
+              <h5 className="footer-heading">System Portals</h5>
+              <Link to="/login" className="footer-link">Administrator Console</Link>
+              <Link to="/login" className="footer-link">Service Advisor Desk</Link>
+              <Link to="/login" className="footer-link">Technician Workbench</Link>
+              <Link to="/login" className="footer-link">Customer Portal</Link>
+              <Link to="/register" className="footer-link">Create Account</Link>
             </div>
 
             <div className="col-lg-3">
-              <h5>Support & Garage HQ</h5>
-              <p className="text-muted small mb-2 d-flex align-items-center gap-2">
-                <BsTelephone className="text-orange" /> +91 (800) 123-4567
+              <h5 className="footer-heading">Support & Garage HQ</h5>
+              <p className="footer-contact-item">
+                <BsTelephone className="gold-text" /> +91 (800) 123-4567
               </p>
-              <p className="text-muted small mb-2 d-flex align-items-center gap-2">
-                <BsEnvelope className="text-orange" /> support@garageerp.com
+              <p className="footer-contact-item">
+                <BsEnvelope className="gold-text" /> support@garageerp.com
               </p>
-              <p className="text-muted small mb-0 d-flex align-items-center gap-2">
-                <BsClock className="text-orange" /> Mon - Sat: 8:00 AM - 7:00 PM
+              <p className="footer-contact-item">
+                <BsClock className="gold-text" /> Mon - Sat: 8:00 AM - 7:00 PM
               </p>
             </div>
           </div>
 
-          <div className="pt-4 border-top border-secondary border-opacity-25 d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 text-muted small">
+          <div className="footer-bottom-bar d-flex flex-column flex-md-row justify-content-between align-items-center gap-3">
             <div>
               &copy; {new Date().getFullYear()} Garage ERP. All rights reserved. Professional Automotive ERP.
             </div>
-            <div className="d-flex gap-3">
-              <a href="#home" className="text-muted">Privacy Policy</a>
-              <a href="#home" className="text-muted">Terms of Service</a>
-              <a href="#home" className="text-muted">Security</a>
+            <div className="d-flex gap-4">
+              <a href="#home" className="footer-sub-link">Privacy Policy</a>
+              <a href="#home" className="footer-sub-link">Terms of Service</a>
+              <a href="#home" className="footer-sub-link">Security</a>
             </div>
           </div>
         </div>

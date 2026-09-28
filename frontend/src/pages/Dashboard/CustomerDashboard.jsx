@@ -4,7 +4,7 @@ import { Row, Col, Card, Table, Badge, Button, Alert } from 'react-bootstrap';
 import { AuthContext } from '../../context/AuthContext';
 import { 
   FaCar, FaTools, FaCalendarCheck, FaFileInvoiceDollar, 
-  FaPlus, FaLightbulb, FaHistory, FaCheck, FaTimes 
+  FaPlus, FaLightbulb, FaHistory, FaCheck, FaTimes, FaAmbulance 
 } from 'react-icons/fa';
 import api from '../../services/api';
 import billingService from '../../services/billingService';
@@ -123,6 +123,9 @@ const CustomerDashboard = () => {
         ]}
         actions={
           <div className="d-flex gap-2">
+            <Link to="/roadside-assistance" className="btn btn-outline-danger d-flex align-items-center gap-2 shadow-sm">
+              <FaAmbulance /> <span>Roadside Assistance</span>
+            </Link>
             <Link to="/request-service" className="btn btn-orange d-flex align-items-center gap-2 shadow-sm">
               <FaPlus /> <span>Book New Service</span>
             </Link>
@@ -183,6 +186,31 @@ const CustomerDashboard = () => {
           </div>
         </Alert>
       )}
+
+      {/* 24/7 Roadside Assistance Quick Action Card */}
+      <div 
+        className="p-3 mb-4 rounded-3 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 shadow-sm"
+        style={{ 
+          background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(217, 168, 62, 0.08) 100%)',
+          border: '1px solid rgba(239, 68, 68, 0.3)'
+        }}
+      >
+        <div className="d-flex align-items-center gap-3">
+          <div 
+            className="rounded-circle d-flex align-items-center justify-content-center text-white flex-shrink-0"
+            style={{ width: '42px', height: '42px', background: '#EF4444' }}
+          >
+            <FaAmbulance size={20} />
+          </div>
+          <div>
+            <div className="fw-bold text-navy fs-6">Stranded or Broken Down? 24/7 Roadside Assistance</div>
+            <div className="text-muted small">Live GPS map breakdown dispatch within 20 km of our Udupi workshop.</div>
+          </div>
+        </div>
+        <Link to="/roadside-assistance" className="btn btn-sm btn-danger px-3 py-2 fw-semibold d-flex align-items-center gap-2 flex-shrink-0">
+          <FaAmbulance /> <span>Request Roadside Assistance</span>
+        </Link>
+      </div>
 
       {/* 3 Overview KPI Cards */}
       <Row className="g-3 mb-4">

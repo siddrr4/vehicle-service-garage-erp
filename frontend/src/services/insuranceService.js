@@ -42,10 +42,19 @@ export const getVehicleRenewalHistory = async (vehicleId) => {
   return response.data;
 };
 
+/**
+ * Get complete insurance renewal receipt by Renewal ID
+ */
+export const getRenewalReceipt = async (renewalId) => {
+  const response = await api.get(`${API_URL}receipt/${renewalId}`);
+  return response.data;
+};
+
 export default {
   getVehicleInsurance,
   createRenewalOrder,
   verifyRenewalPayment,
   recordRenewalFailure,
   getVehicleRenewalHistory,
+  getRenewalReceipt,
 };

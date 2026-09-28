@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Card, Table, Row, Col, Button, Modal, Form, Badge } from 'react-bootstrap';
-import { FaArrowLeft, FaPrint, FaDownload, FaCar, FaUser, FaTools, FaFileInvoiceDollar, FaCheckCircle, FaExclamationCircle } from 'react-icons/fa';
+import { FaArrowLeft, FaPrint, FaDownload, FaCar, FaUser, FaTools, FaTruck, FaFileInvoiceDollar, FaCheckCircle, FaExclamationCircle } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import billingService from '../../services/billingService';
 import settingService from '../../services/settingService';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
 import { AuthContext } from '../../context/AuthContext';
-import { formatDateIST } from '../../utils/dateUtils';
+import { formatDateIST, formatTimeIST } from '../../utils/dateUtils';
 import { formatINR, numberToWordsINR } from '../../utils/currencyUtils';
 
 const InvoiceDetails = () => {
@@ -225,6 +225,108 @@ const InvoiceDetails = () => {
   nextDateDueObj.setMonth(nextDateDueObj.getMonth() + 6);
   const nextServiceDate = formatDateIST(nextDateDueObj);
 
+  // Customer GSTIN logic: support registered and unregistered customers
+  const customerGstin = customer.gstin ? String(customer.gstin).trim() : '';
+  const isRegisteredGstin = Boolean(
+    customerGstin &&
+    !customerGstin.toUpperCase().includes('URP') &&
+    !customerGstin.toUpperCase().includes('UNREGISTERED')
+  );
+  const displayCustomerGstin = isRegisteredGstin ? customerGstin : 'URP – Unregistered Person';
+
+  // Vehicle Delivery Details derived strictly in IST without dummy data
+  const parseDeliveryDetails = () => {
+    // 1. Expected Delivery Date & Time
+    let expectedDate = '--';
+    let expectedTime = '--';
+
+    if (jobCard.estimatedDeliveryDate) {
+      const estDateVal = jobCard.estimatedDeliveryDate;
+      const formattedDate = formatDateIST(estDateVal);
+      if (formattedDate && formattedDate !== '—') {
+        expectedDate = formattedDate;
+      }
+
+      // Check if estimatedDeliveryDate has an explicit non-midnight time component
+      let hasExplicitTime = false;
+      if (typeof estDateVal === 'string') {
+        if (estDateVal.includes('T') && !estDateVal.includes('T00:00:00')) {
+          hasExplicitTime = true;
+        }
+      } else if (estDateVal instanceof Date && !isNaN(estDateVal.getTime())) {
+        if (estDateVal.getUTCHours() !== 0 || estDateVal.getUTCMinutes() !== 0 || estDateVal.getUTCSeconds() !== 0) {
+          hasExplicitTime = true;
+        }
+      }
+
+      if (hasExplicitTime) {
+        const formattedTime = formatTimeIST(estDateVal);
+        if (formattedTime && formattedTime !== '—') {
+          expectedTime = formattedTime;
+        }
+      }
+    }
+
+    if (jobCard.estimatedDeliveryTime) {
+      expectedTime = jobCard.estimatedDeliveryTime;
+    }
+
+    // 2. Actual Delivery Date & Time
+    let actualDate = '--';
+    let actualTime = '--';
+
+    const hasActualDelivery = Boolean(jobCard.deliveryTime);
+    if (hasActualDelivery) {
+      const formattedActDate = formatDateIST(jobCard.deliveryTime);
+      const formattedActTime = formatTimeIST(jobCard.deliveryTime);
+      if (formattedActDate && formattedActDate !== '—') actualDate = formattedActDate;
+      if (formattedActTime && formattedActTime !== '—') actualTime = formattedActTime;
+    }
+
+    // 3. Delivery Status
+    let deliveryStatus = 'Pending Delivery';
+    let deliveryStatusVariant = 'secondary';
+
+    const jcStatus = jobCard.status;
+    if (jcStatus === 'Delivered' || hasActualDelivery) {
+      deliveryStatus = 'Delivered';
+      deliveryStatusVariant = 'success';
+    } else if (jcStatus === 'Completed') {
+      deliveryStatus = 'Ready for Delivery';
+      deliveryStatusVariant = 'info';
+    } else if (jcStatus === 'In Progress') {
+      deliveryStatus = 'In Progress';
+      deliveryStatusVariant = 'warning';
+    } else if (jcStatus === 'Waiting for Parts') {
+      deliveryStatus = 'Waiting for Parts';
+      deliveryStatusVariant = 'warning';
+    } else if (jcStatus === 'Cancelled') {
+      deliveryStatus = 'Cancelled';
+      deliveryStatusVariant = 'danger';
+    } else if (jcStatus === 'Assigned') {
+      deliveryStatus = 'Assigned';
+      deliveryStatusVariant = 'secondary';
+    } else if (jcStatus === 'Open' || jcStatus === 'Pending') {
+      deliveryStatus = 'Pending Delivery';
+      deliveryStatusVariant = 'secondary';
+    } else if (jcStatus) {
+      deliveryStatus = jcStatus;
+      deliveryStatusVariant = 'secondary';
+    }
+
+    return {
+      expectedDate,
+      expectedTime,
+      actualDate,
+      actualTime,
+      deliveryStatus,
+      deliveryStatusVariant,
+      hasActualDelivery
+    };
+  };
+
+  const deliveryDetails = parseDeliveryDetails();
+
   return (
     <div className="container-fluid p-0 pb-5">
       
@@ -306,12 +408,12 @@ const InvoiceDetails = () => {
               <div className="small text-muted fw-bold text-uppercase mb-1" style={{ fontSize: '0.75rem' }}>
                 [ Original for Recipient ]
               </div>
-              <div className="small text-secondary font-monospace border rounded p-2 bg-light text-start" style={{ minWidth: '220px' }}>
-                <div><strong>Invoice No:</strong> <span className="text-primary fw-bold">{invoice.invoiceNumber}</span></div>
-                <div><strong>Date:</strong> {formatDateIST(invoice.createdAt || invoice.invoiceDate)}</div>
-                <div><strong>Place of Supply:</strong> {placeOfSupply}</div>
-                <div><strong>Supply Type:</strong> {isInterState ? 'Inter-State (IGST)' : 'Intra-State (CGST+SGST)'}</div>
-                <div><strong>Reverse Charge:</strong> No</div>
+              <div className="small font-monospace border rounded p-2.5 text-start" style={{ minWidth: '230px', backgroundColor: '#151A17', borderColor: 'rgba(217, 168, 62, 0.28)', color: '#CBD5E1', lineHeight: '1.5' }}>
+                <div><strong style={{ color: '#D9A83E' }}>Invoice No:</strong> <span className="fw-bold" style={{ color: '#38BDF8' }}>{invoice.invoiceNumber}</span></div>
+                <div><strong style={{ color: '#D9A83E' }}>Date:</strong> <span style={{ color: '#F8FAFC' }}>{formatDateIST(invoice.createdAt || invoice.invoiceDate)}</span></div>
+                <div><strong style={{ color: '#D9A83E' }}>Place of Supply:</strong> <span style={{ color: '#F8FAFC' }}>{placeOfSupply}</span></div>
+                <div><strong style={{ color: '#D9A83E' }}>Supply Type:</strong> <span style={{ color: '#F8FAFC' }}>{isInterState ? 'Inter-State (IGST)' : 'Intra-State (CGST+SGST)'}</span></div>
+                <div><strong style={{ color: '#D9A83E' }}>Reverse Charge:</strong> <span style={{ color: '#F8FAFC' }}>No</span></div>
               </div>
             </div>
           </div>
@@ -320,47 +422,139 @@ const InvoiceDetails = () => {
           <Row className="g-2 mb-3">
             {/* Box A: Customer Details */}
             <Col xs={12} md={6}>
-              <div className="border rounded h-100 p-2.5 bg-light-subtle">
-                <div className="d-flex align-items-center gap-1.5 text-navy fw-bold text-uppercase border-bottom pb-1 mb-1.5 small">
-                  <FaUser size={12} /> Billed To / Customer Details
+              <div 
+                className="invoice-profile-box border rounded h-100 p-3" 
+                style={{ 
+                  backgroundColor: '#151A17', 
+                  borderColor: 'rgba(217, 168, 62, 0.28)' 
+                }}
+              >
+                <div 
+                  className="d-flex align-items-center gap-1.5 fw-bold text-uppercase border-bottom pb-1.5 mb-2 small" 
+                  style={{ color: '#F2C75C', borderColor: 'rgba(217, 168, 62, 0.2)' }}
+                >
+                  <FaUser size={12} className="text-orange" /> Billed To / Customer Details
                 </div>
-                <div className="small text-secondary" style={{ lineHeight: '1.45' }}>
-                  <div className="fw-bold text-dark fs-6">{customer.fullName || 'Valued Customer'}</div>
-                  <div><strong>Mobile:</strong> {customer.mobileNumber || 'N/A'}</div>
-                  <div><strong>Email:</strong> {customer.emailAddress || 'N/A'}</div>
+                <div className="small" style={{ lineHeight: '1.55', color: '#CBD5E1' }}>
+                  <div className="fw-bold fs-6 mb-1" style={{ color: '#FFFFFF' }}>{customer.fullName || 'Valued Customer'}</div>
+                  <div><strong style={{ color: '#D9A83E' }}>Mobile:</strong> <span style={{ color: '#F8FAFC' }}>{customer.mobileNumber || 'N/A'}</span></div>
+                  <div><strong style={{ color: '#D9A83E' }}>Email:</strong> <span style={{ color: '#F8FAFC' }}>{customer.emailAddress || 'N/A'}</span></div>
                   {(customer.address || customer.city) && (
-                    <div><strong>Address:</strong> {customer.address ? `${customer.address}, ` : ''}{customer.city ? `${customer.city}, ` : ''}{customer.state || ''} {customer.pincode ? `- ${customer.pincode}` : ''}</div>
+                    <div><strong style={{ color: '#D9A83E' }}>Address:</strong> <span style={{ color: '#E2E8F0' }}>{customer.address ? `${customer.address}, ` : ''}{customer.city ? `${customer.city}, ` : ''}{customer.state || ''} {customer.pincode ? `- ${customer.pincode}` : ''}</span></div>
                   )}
-                  <div><strong>Customer GSTIN:</strong> <span className="font-monospace fw-bold text-dark">{customer.gstin ? customer.gstin : 'URP (Unregistered Person)'}</span></div>
-                  <div><strong>State of Supply:</strong> {customer.state || garage.state || 'Karnataka'}</div>
+                  <div><strong style={{ color: '#D9A83E' }}>Customer GSTIN:</strong> <span className="font-monospace fw-bold" style={{ color: isRegisteredGstin ? '#F2C75C' : '#94A3B8' }}>{displayCustomerGstin}</span></div>
+                  <div><strong style={{ color: '#D9A83E' }}>State of Supply:</strong> <span style={{ color: '#F8FAFC' }}>{customer.state || garage.state || 'Karnataka'}</span></div>
                 </div>
               </div>
             </Col>
 
             {/* Box B: Vehicle & Job Card Details */}
             <Col xs={12} md={6}>
-              <div className="border rounded h-100 p-2.5 bg-light-subtle">
-                <div className="d-flex align-items-center gap-1.5 text-navy fw-bold text-uppercase border-bottom pb-1 mb-1.5 small">
-                  <FaTools size={12} /> Vehicle & Workshop Job Card
+              <div 
+                className="invoice-profile-box border rounded h-100 p-3" 
+                style={{ 
+                  backgroundColor: '#151A17', 
+                  borderColor: 'rgba(217, 168, 62, 0.28)' 
+                }}
+              >
+                <div 
+                  className="d-flex align-items-center gap-1.5 fw-bold text-uppercase border-bottom pb-1.5 mb-2 small" 
+                  style={{ color: '#F2C75C', borderColor: 'rgba(217, 168, 62, 0.2)' }}
+                >
+                  <FaTools size={12} className="text-orange" /> Vehicle & Workshop Job Card
                 </div>
-                <div className="small text-secondary" style={{ lineHeight: '1.45' }}>
-                  <Row className="g-1">
-                    <Col xs={6}><strong>Job Card No:</strong> <span className="font-monospace text-primary fw-bold">{jobCard.jobNumber || 'N/A'}</span></Col>
-                    <Col xs={6}><strong>Reg No:</strong> <span className="font-monospace fw-bold text-dark">{vehicle.vehicleNumber || 'N/A'}</span></Col>
-                    <Col xs={6}><strong>Make & Model:</strong> {vehicle.brand || ''} {vehicle.model || ''}</Col>
-                    <Col xs={6}><strong>Fuel / Trans:</strong> {vehicle.fuelType || 'Petrol'} / {vehicle.transmission || 'Manual'}</Col>
-                    <Col xs={6}><strong>Engine No:</strong> <span className="font-monospace">{vehicle.engineNumber || 'N/A'}</span></Col>
-                    <Col xs={6}><strong>Chassis No:</strong> <span className="font-monospace">{vehicle.chassisNumber || 'N/A'}</span></Col>
-                    <Col xs={6}><strong>Odometer:</strong> {vehicle.currentOdometerReading ? `${vehicle.currentOdometerReading.toLocaleString('en-IN')} km` : 'N/A'}</Col>
-                    <Col xs={6}><strong>Service Type:</strong> {jobCard.serviceType || 'General Service'}</Col>
-                    <Col xs={6}><strong>Mechanic:</strong> {jobCard.assignedMechanic?.fullName || 'Assigned Bay'}</Col>
-                    <Col xs={6}><strong>Service Advisor:</strong> {jobCard.serviceRequest?.serviceAdvisor?.fullName || 'Workshop Desk'}</Col>
-                    <Col xs={12}><strong>Next Service Due:</strong> <span className="text-dark fw-semibold">{nextServiceDate} or {nextOdoDue}</span></Col>
+                <div className="small" style={{ lineHeight: '1.55', color: '#CBD5E1' }}>
+                  <Row className="g-1.5">
+                    <Col xs={6}><strong style={{ color: '#D9A83E' }}>Job Card No:</strong> <span className="font-monospace fw-bold" style={{ color: '#38BDF8' }}>{jobCard.jobNumber || 'N/A'}</span></Col>
+                    <Col xs={6}><strong style={{ color: '#D9A83E' }}>Reg No:</strong> <span className="font-monospace fw-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(217, 168, 62, 0.15)', color: '#F2C75C', border: '1px solid rgba(217, 168, 62, 0.3)' }}>{vehicle.vehicleNumber || 'N/A'}</span></Col>
+                    <Col xs={6}><strong style={{ color: '#D9A83E' }}>Make & Model:</strong> <span style={{ color: '#F8FAFC' }}>{vehicle.brand || ''} {vehicle.model || ''}</span></Col>
+                    <Col xs={6}><strong style={{ color: '#D9A83E' }}>Fuel / Trans:</strong> <span style={{ color: '#F8FAFC' }}>{vehicle.fuelType || 'Petrol'} / {vehicle.transmission || 'Manual'}</span></Col>
+                    <Col xs={6}><strong style={{ color: '#D9A83E' }}>Engine No:</strong> <span className="font-monospace" style={{ color: '#E2E8F0' }}>{vehicle.engineNumber || 'N/A'}</span></Col>
+                    <Col xs={6}><strong style={{ color: '#D9A83E' }}>Chassis No:</strong> <span className="font-monospace" style={{ color: '#E2E8F0' }}>{vehicle.chassisNumber || 'N/A'}</span></Col>
+                    <Col xs={6}><strong style={{ color: '#D9A83E' }}>Odometer:</strong> <span style={{ color: '#F8FAFC' }}>{vehicle.currentOdometerReading ? `${vehicle.currentOdometerReading.toLocaleString('en-IN')} km` : 'N/A'}</span></Col>
+                    <Col xs={6}><strong style={{ color: '#D9A83E' }}>Service Type:</strong> <span style={{ color: '#F8FAFC' }}>{jobCard.serviceType || 'General Service'}</span></Col>
+                    <Col xs={6}><strong style={{ color: '#D9A83E' }}>Mechanic:</strong> <span style={{ color: '#F8FAFC' }}>{jobCard.assignedMechanic?.fullName || 'Assigned Bay'}</span></Col>
+                    <Col xs={6}><strong style={{ color: '#D9A83E' }}>Service Advisor:</strong> <span style={{ color: '#F8FAFC' }}>{jobCard.serviceRequest?.serviceAdvisor?.fullName || 'Workshop Desk'}</span></Col>
+                    <Col xs={12}><strong style={{ color: '#D9A83E' }}>Next Service Due:</strong> <span className="fw-semibold" style={{ color: '#10B981' }}>{nextServiceDate} or {nextOdoDue}</span></Col>
                   </Row>
                 </div>
               </div>
             </Col>
           </Row>
+
+          {/* Box C: Vehicle Delivery Details */}
+          <div 
+            className="invoice-profile-box border rounded p-3 mb-3" 
+            style={{ 
+              backgroundColor: '#151A17', 
+              borderColor: 'rgba(217, 168, 62, 0.28)' 
+            }}
+          >
+            <div 
+              className="d-flex align-items-center justify-content-between border-bottom pb-1.5 mb-2 small flex-wrap gap-2" 
+              style={{ color: '#F2C75C', borderColor: 'rgba(217, 168, 62, 0.2)' }}
+            >
+              <div className="d-flex align-items-center gap-1.5 fw-bold text-uppercase">
+                <FaTruck size={13} className="text-orange" /> Vehicle Delivery Details
+              </div>
+              <span className="small text-muted font-monospace" style={{ fontSize: '0.72rem' }}>
+                All timings recorded in Indian Standard Time (IST)
+              </span>
+            </div>
+            
+            <Row className="g-2 pt-1 text-center text-sm-start align-items-center">
+              <Col xs={6} sm={4} md={true}>
+                <div className="text-muted small" style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                  Expected Delivery Date
+                </div>
+                <div className="fw-bold font-monospace mt-0.5" style={{ color: deliveryDetails.expectedDate !== '--' ? '#F8FAFC' : '#94A3B8', fontSize: '0.85rem' }}>
+                  {deliveryDetails.expectedDate}
+                </div>
+              </Col>
+              
+              <Col xs={6} sm={4} md={true}>
+                <div className="text-muted small" style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                  Expected Delivery Time
+                </div>
+                <div className="fw-bold font-monospace mt-0.5" style={{ color: deliveryDetails.expectedTime !== '--' ? '#F8FAFC' : '#94A3B8', fontSize: '0.85rem' }}>
+                  {deliveryDetails.expectedTime}
+                </div>
+              </Col>
+
+              <Col xs={6} sm={4} md={true}>
+                <div className="text-muted small" style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                  Actual Delivery Date
+                </div>
+                <div className="fw-bold font-monospace mt-0.5" style={{ color: deliveryDetails.actualDate !== '--' ? '#38BDF8' : '#94A3B8', fontSize: '0.85rem' }}>
+                  {deliveryDetails.actualDate}
+                </div>
+              </Col>
+
+              <Col xs={6} sm={4} md={true}>
+                <div className="text-muted small" style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                  Actual Delivery Time
+                </div>
+                <div className="fw-bold font-monospace mt-0.5" style={{ color: deliveryDetails.actualTime !== '--' ? '#38BDF8' : '#94A3B8', fontSize: '0.85rem' }}>
+                  {deliveryDetails.actualTime}
+                </div>
+              </Col>
+
+              <Col xs={12} sm={8} md={true} className="text-sm-start text-md-end">
+                <div className="text-muted small" style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                  Delivery Status
+                </div>
+                <div className="mt-0.5">
+                  <Badge 
+                    bg={deliveryDetails.deliveryStatusVariant} 
+                    className="px-2.5 py-1 text-uppercase font-monospace fw-bold" 
+                    style={{ fontSize: '0.75rem', letterSpacing: '0.5px' }}
+                  >
+                    {deliveryDetails.deliveryStatus}
+                  </Badge>
+                </div>
+              </Col>
+            </Row>
+          </div>
 
           {/* Free Service Notification Alert */}
           {invoice.isFreeService && (
@@ -699,6 +893,10 @@ const InvoiceDetails = () => {
                     <span>Balance Due:</span>
                     <span className="fs-5">{formatINR(invoice.balanceDue)}</span>
                   </div>
+                  <div className="d-flex justify-content-between pt-1.5 text-secondary border-top mt-1.5" style={{ fontSize: '0.8rem' }}>
+                    <span>Vehicle Delivery Status:</span>
+                    <span className="fw-bold font-monospace text-dark">{deliveryDetails.deliveryStatus}</span>
+                  </div>
                 </div>
 
                 {/* Latest Payment Reference */}
@@ -849,6 +1047,15 @@ const InvoiceDetails = () => {
             border: 1px solid #333 !important;
             color: #000 !important;
             background: transparent !important;
+          }
+          .invoice-profile-box {
+            background-color: #f8f9fa !important;
+            border: 1px solid #ccc !important;
+          }
+          .invoice-profile-box strong, 
+          .invoice-profile-box span, 
+          .invoice-profile-box div {
+            color: #000 !important;
           }
         }
       `}</style>

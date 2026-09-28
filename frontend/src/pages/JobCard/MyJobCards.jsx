@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FaWrench, FaCalendarAlt, FaCheckCircle, FaClock, FaTools } from 'react-icons/fa';
 import { toast } from 'react-toastify';
@@ -11,19 +11,42 @@ const MyJobCards = () => {
   const navigate = useNavigate();
   const [jobCards, setJobCards] = useState([]);
   const [loading, setLoading] = useState(true);
+  const fetchingRef = useRef(false);
 
   useEffect(() => {
+    let isMounted = true;
+    const controller = new AbortController();
+
     const fetchMyJobCards = async () => {
+      if (fetchingRef.current) return;
+      fetchingRef.current = true;
       try {
-        const data = await jobCardService.getMyJobCards();
-        setJobCards(data);
-        setLoading(false);
+        setLoading(true);
+        const data = await jobCardService.getMyJobCards({ signal: controller.signal });
+        if (!isMounted) return;
+        const list = Array.isArray(data) ? data : (data?.jobCards || []);
+        setJobCards(list);
       } catch (error) {
-        toast.error('Failed to fetch your job cards');
-        setLoading(false);
+        if (!isMounted || error.name === 'CanceledError' || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+          return;
+        }
+        console.error('Error fetching job cards:', error);
+        toast.error('Failed to fetch your job cards', { toastId: 'my-job-cards-error' });
+      } finally {
+        fetchingRef.current = false;
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
+
     fetchMyJobCards();
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+      fetchingRef.current = false;
+    };
   }, []);
 
   const handleViewInvoice = async (jobCardId) => {
@@ -109,15 +132,15 @@ const MyJobCards = () => {
                       </div>
                       <div className="d-flex justify-content-between mb-1">
                         <span className="text-muted">Total Amount:</span>
-                        <strong className="text-dark">₹{jc.invoice.grandTotal.toFixed(2)}</strong>
+                        <strong className="text-dark">₹{(jc.invoice.grandTotal || 0).toFixed(2)}</strong>
                       </div>
                       <div className="d-flex justify-content-between mb-1">
                         <span className="text-muted">Paid Amount:</span>
-                        <span className="text-success fw-medium">₹{jc.invoice.amountPaid.toFixed(2)}</span>
+                        <span className="text-success fw-medium">₹{(jc.invoice.amountPaid || 0).toFixed(2)}</span>
                       </div>
                       <div className="d-flex justify-content-between mb-1">
                         <span className="text-muted">Balance Due:</span>
-                        <strong className="text-danger">₹{jc.invoice.balanceDue.toFixed(2)}</strong>
+                        <strong className="text-danger">₹{(jc.invoice.balanceDue || 0).toFixed(2)}</strong>
                       </div>
                     </div>
                   ) : (
@@ -181,7 +204,7 @@ const MyJobCards = () => {
                                 className="btn btn-primary btn-sm w-100"
                                 onClick={() => navigate(`/billing/invoice/${jc.invoice._id}`)}
                               >
-                                Pay Now (₹{jc.invoice.balanceDue.toFixed(2)})
+                                Pay Now (₹{(jc.invoice.balanceDue || 0).toFixed(2)})
                               </button>
                             )}
                             {jc.invoice.status === 'Partially Paid' && (
@@ -189,7 +212,7 @@ const MyJobCards = () => {
                                 className="btn btn-warning text-dark btn-sm fw-semibold w-100"
                                 onClick={() => navigate(`/billing/invoice/${jc.invoice._id}`)}
                               >
-                                Pay Remaining (₹{jc.invoice.balanceDue.toFixed(2)})
+                                Pay Remaining (₹{(jc.invoice.balanceDue || 0).toFixed(2)})
                               </button>
                             )}
                             {jc.invoice.status === 'Paid' && (

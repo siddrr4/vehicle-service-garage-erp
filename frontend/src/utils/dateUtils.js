@@ -54,6 +54,16 @@ export const getIndiaDateParts = (date = new Date()) => {
 };
 
 /**
+ * Returns current hours, minutes, and seconds in Asia/Kolkata (IST).
+ * @param {Date|string|number} [date=new Date()]
+ * @returns {{ hours: number, minutes: number, seconds: number }}
+ */
+export const getIndiaCurrentTimeParts = (date = new Date()) => {
+  const { hour, minute, second } = getIndiaDateParts(date);
+  return { hours: hour, minutes: minute, seconds: second };
+};
+
+/**
  * Formats date into localized IST string (e.g. "10 Sep 2026").
  * @param {Date|string|number} date
  * @param {Intl.DateTimeFormatOptions} [options]
@@ -98,7 +108,8 @@ export const formatTimeIST = (date, options = {}) => {
     hour12: true,
     ...options,
   };
-  return d.toLocaleTimeString('en-IN', defaultOptions);
+  const str = d.toLocaleTimeString('en-IN', defaultOptions);
+  return str.replace(/\b(am|pm)\b/gi, (m) => m.toUpperCase());
 };
 
 /**

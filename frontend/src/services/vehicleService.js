@@ -33,11 +33,19 @@ export const lookupVehicleByReg = async (regNumber) => {
   return data;
 };
 
+export const checkVehicleUniqueness = async (field, value, excludeId = '') => {
+  const params = new URLSearchParams({ field, value });
+  if (excludeId) params.append('excludeId', excludeId);
+  const { data } = await api.get(`/vehicles/check-unique?${params.toString()}`);
+  return data;
+};
+
 export default {
   getVehicles,
   getVehicleById,
   createVehicle,
   updateVehicle,
   deleteVehicle,
-  lookupVehicleByReg
+  lookupVehicleByReg,
+  checkVehicleUniqueness
 };

@@ -4,7 +4,7 @@ import {
   FaHome, FaUsers, FaCar, FaCalendarAlt, FaWrench, 
   FaUserTie, FaBoxOpen, FaFileInvoiceDollar, FaChartBar, 
   FaCog, FaSignOutAlt, FaTimes, FaPlus, FaUserClock, FaCheckCircle, FaUserCircle,
-  FaClipboardList, FaMoneyBillWave, FaReceipt, FaWalking, FaBell, FaHistory
+  FaClipboardList, FaMoneyBillWave, FaReceipt, FaWalking, FaBell, FaHistory, FaAmbulance
 } from 'react-icons/fa';
 import { AuthContext } from '../../context/AuthContext';
 
@@ -26,6 +26,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       category: 'WORKSHOP',
       items: [
         { name: 'Appointments', path: '/appointments', icon: <FaCalendarAlt /> },
+        { name: 'Roadside Assistance', path: '/admin/roadside-assistance', icon: <FaAmbulance /> },
         { name: 'Walk-in Service', path: '/walk-in', icon: <FaWalking /> },
         { name: 'Waiting Queue', path: '/waiting-queue', icon: <FaUserClock /> },
         { name: 'Job Cards', path: '/job-cards', icon: <FaWrench /> }
@@ -119,6 +120,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       items: [
         { name: 'My Vehicles', path: '/my-vehicles', icon: <FaCar /> },
         { name: 'Request Service', path: '/request-service', icon: <FaPlus /> },
+        { name: 'Roadside Assistance', path: '/roadside-assistance', icon: <FaAmbulance /> },
         { name: 'My Requests', path: '/my-requests', icon: <FaCalendarAlt /> },
         { name: 'My Job Cards', path: '/my-job-cards', icon: <FaWrench /> },
         { name: 'Service History', path: '/service-history', icon: <FaHistory /> }
@@ -148,12 +150,25 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       {/* Sidebar Header */}
       <div className="sidebar-brand justify-content-between">
         <Link to={dashboardPath} className="text-white text-decoration-none d-flex align-items-center gap-2 overflow-hidden">
-          <div className="bg-orange p-2 rounded-2 text-white d-flex align-items-center justify-content-center flex-shrink-0" style={{ width: '36px', height: '36px' }}>
-            <FaCar size={18} />
+          <div 
+            className="rounded-2 d-flex align-items-center justify-content-center flex-shrink-0" 
+            style={{ 
+              width: '36px', 
+              height: '36px',
+              background: 'linear-gradient(135deg, rgba(217, 168, 62, 0.22) 0%, rgba(217, 168, 62, 0.06) 100%)',
+              border: '1px solid rgba(217, 168, 62, 0.35)',
+              color: '#F2C75C'
+            }}
+          >
+            <FaCar size={16} />
           </div>
           <div className="d-flex flex-column text-start">
-            <span className="fw-bold fs-6 lh-1" style={{ letterSpacing: '0.02em' }}>GARAGE ERP</span>
-            <span className="text-muted" style={{ fontSize: '0.675rem', letterSpacing: '0.01em' }}>Vehicle Service Management</span>
+            <span className="fw-bold fs-6 lh-1 text-white" style={{ letterSpacing: '0.04em' }}>
+              GARAGE <span style={{ color: '#F2C75C' }}>ERP</span>
+            </span>
+            <span style={{ fontSize: '0.675rem', color: '#8E9891', letterSpacing: '0.02em', marginTop: '3px' }}>
+              Vehicle Service Management
+            </span>
           </div>
         </Link>
         <button 
@@ -161,6 +176,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           className="btn btn-link text-white p-0 d-lg-none" 
           onClick={toggleSidebar}
           aria-label="Close Sidebar"
+          style={{ opacity: 0.8 }}
         >
           <FaTimes size={18} />
         </button>
@@ -179,7 +195,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                     className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
                     onClick={() => { if (window.innerWidth < 992) toggleSidebar(); }}
                   >
-                    <span className="d-inline-flex" style={{ width: '18px', justifyContent: 'center' }}>
+                    <span className="sidebar-item-icon d-inline-flex" style={{ width: '18px', justifyContent: 'center' }}>
                       {item.icon}
                     </span>
                     <span>{item.name}</span>
@@ -195,7 +211,8 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       <div className="sidebar-footer">
         <button 
           onClick={logout} 
-          className="btn btn-link nav-link w-100 text-start text-danger d-flex align-items-center gap-2 px-2 py-2 m-0"
+          className="btn btn-link nav-link w-100 text-start d-flex align-items-center gap-2 px-2 py-2 m-0 text-decoration-none"
+          style={{ color: '#EF4444', transition: 'all 0.2s ease' }}
         >
           <FaSignOutAlt /> <span>Logout</span>
         </button>

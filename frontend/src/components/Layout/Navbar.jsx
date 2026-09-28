@@ -41,15 +41,35 @@ const Navbar = ({ toggleSidebar }) => {
   const getRoleBadge = (role) => {
     switch (role) {
       case 'admin':
-        return { label: 'Administrator', bg: 'bg-navy', icon: <FaUserTie size={11} className="me-1" /> };
+        return { 
+          label: 'Administrator', 
+          style: { background: 'rgba(217, 168, 62, 0.15)', border: '1px solid rgba(217, 168, 62, 0.35)', color: '#F2C75C' },
+          icon: <FaUserTie size={11} className="me-1" /> 
+        };
       case 'advisor':
-        return { label: 'Service Advisor', bg: 'bg-orange', icon: <FaUserTie size={11} className="me-1" /> };
+        return { 
+          label: 'Service Advisor', 
+          style: { background: 'rgba(217, 168, 62, 0.15)', border: '1px solid rgba(217, 168, 62, 0.35)', color: '#F2C75C' },
+          icon: <FaUserTie size={11} className="me-1" /> 
+        };
       case 'mechanic':
-        return { label: 'Technician', bg: 'bg-primary', icon: <FaWrench size={11} className="me-1" /> };
+        return { 
+          label: 'Technician', 
+          style: { background: 'rgba(59, 130, 246, 0.15)', border: '1px solid rgba(59, 130, 246, 0.35)', color: '#60A5FA' },
+          icon: <FaWrench size={11} className="me-1" /> 
+        };
       case 'customer':
-        return { label: 'Vehicle Owner', bg: 'bg-secondary', icon: <FaUser size={11} className="me-1" /> };
+        return { 
+          label: 'Vehicle Owner', 
+          style: { background: 'rgba(167, 176, 170, 0.15)', border: '1px solid rgba(167, 176, 170, 0.35)', color: '#A7B0AA' },
+          icon: <FaUser size={11} className="me-1" /> 
+        };
       default:
-        return { label: 'Staff', bg: 'bg-dark', icon: null };
+        return { 
+          label: 'Staff', 
+          style: { background: 'rgba(217, 168, 62, 0.1)', border: '1px solid rgba(217, 168, 62, 0.25)', color: '#D9A83E' },
+          icon: null 
+        };
     }
   };
 
@@ -61,19 +81,26 @@ const Navbar = ({ toggleSidebar }) => {
       <div className="d-flex align-items-center gap-3">
         <button 
           type="button"
-          className="btn btn-light border p-2 d-flex align-items-center justify-content-center text-dark" 
+          className="btn p-2 d-flex align-items-center justify-content-center" 
           onClick={toggleSidebar}
           aria-label="Toggle Navigation Sidebar"
-          style={{ width: '38px', height: '38px', borderRadius: '8px' }}
+          style={{ 
+            width: '38px', 
+            height: '38px', 
+            borderRadius: '9px',
+            backgroundColor: '#151A17',
+            border: '1px solid rgba(217, 168, 62, 0.25)',
+            color: '#F2C75C'
+          }}
         >
-          <FaBars size={18} />
+          <FaBars size={17} />
         </button>
 
         <div>
-          <h1 className="h6 mb-0 fw-bold text-navy d-none d-sm-block">
+          <h1 className="h6 mb-0 fw-bold text-white d-none d-sm-block" style={{ letterSpacing: '-0.01em' }}>
             {getPageTitle(location.pathname)}
           </h1>
-          <small className="text-muted d-none d-md-block" style={{ fontSize: '0.75rem' }}>
+          <small className="d-none d-md-block" style={{ fontSize: '0.75rem', color: '#8E9891' }}>
             Automotive Workshop & Garage ERP Console
           </small>
         </div>
@@ -83,17 +110,20 @@ const Navbar = ({ toggleSidebar }) => {
         {/* Real Backend Notification Bell */}
         <NotificationBell />
         
-        <div className="vr d-none d-sm-block my-2 text-muted opacity-25" style={{ height: '24px' }}></div>
+        <div className="vr d-none d-sm-block my-2" style={{ height: '24px', backgroundColor: 'rgba(217, 168, 62, 0.2)' }}></div>
 
         {/* User Profile Dropdown */}
         <Dropdown align="end">
           <Dropdown.Toggle as="div" className="d-flex align-items-center gap-2" style={{ cursor: 'pointer', userSelect: 'none' }}>
             <div className="text-end d-none d-sm-block">
-              <p className="mb-0 fw-bold text-navy" style={{ fontSize: '0.875rem', lineHeight: '1.2' }}>
+              <p className="mb-0 fw-bold text-white" style={{ fontSize: '0.875rem', lineHeight: '1.2' }}>
                 {user ? `${user.firstName} ${user.lastName}` : 'Garage Admin'}
               </p>
               <div className="d-flex justify-content-end mt-0.5">
-                <span className={`badge ${roleInfo.bg} text-white px-2 py-0.5`} style={{ fontSize: '0.65rem' }}>
+                <span 
+                  className="badge px-2 py-0.5" 
+                  style={{ fontSize: '0.65rem', ...roleInfo.style }}
+                >
                   {roleInfo.icon}
                   {roleInfo.label}
                 </span>
@@ -101,33 +131,52 @@ const Navbar = ({ toggleSidebar }) => {
             </div>
 
             <div 
-              className="d-flex align-items-center justify-content-center fw-bold text-white rounded-circle shadow-sm"
+              className="d-flex align-items-center justify-content-center fw-bold rounded-circle shadow-sm"
               style={{
                 width: '38px',
                 height: '38px',
-                backgroundColor: 'var(--navy-primary)',
-                border: '2px solid #FFFFFF',
+                backgroundColor: '#151A17',
+                border: '2px solid #D9A83E',
+                color: '#F2C75C',
                 fontSize: '0.85rem',
-                letterSpacing: '0.05em'
+                letterSpacing: '0.05em',
+                boxShadow: '0 0 10px rgba(217, 168, 62, 0.25)'
               }}
             >
               {initials}
             </div>
           </Dropdown.Toggle>
 
-          <Dropdown.Menu className="shadow border mt-2 py-2" style={{ minWidth: '200px' }}>
-            <div className="px-3 py-2 border-bottom mb-1 d-sm-none">
-              <div className="fw-bold text-navy">{user ? `${user.firstName} ${user.lastName}` : 'User'}</div>
-              <small className="text-muted">{user?.email}</small>
+          <Dropdown.Menu 
+            className="shadow border mt-2 py-2" 
+            style={{ 
+              minWidth: '210px',
+              backgroundColor: '#111614',
+              borderColor: 'rgba(217, 168, 62, 0.25)',
+              borderRadius: '12px'
+            }}
+          >
+            <div className="px-3 py-2 border-bottom mb-1 d-sm-none" style={{ borderColor: 'rgba(217, 168, 62, 0.15)' }}>
+              <div className="fw-bold text-white">{user ? `${user.firstName} ${user.lastName}` : 'User'}</div>
+              <small style={{ color: '#8E9891' }}>{user?.email}</small>
             </div>
             
-            <Dropdown.Item as={Link} to="/settings" className="d-flex align-items-center gap-2 py-2">
-              <FaCog className="text-muted" /> Settings & Preferences
+            <Dropdown.Item 
+              as={Link} 
+              to="/settings" 
+              className="d-flex align-items-center gap-2 py-2"
+              style={{ color: '#A7B0AA' }}
+            >
+              <FaCog style={{ color: '#D9A83E' }} /> Settings & Preferences
             </Dropdown.Item>
             
-            <Dropdown.Divider className="my-1" />
+            <Dropdown.Divider style={{ borderColor: 'rgba(217, 168, 62, 0.15)' }} className="my-1" />
             
-            <Dropdown.Item onClick={logout} className="d-flex align-items-center gap-2 py-2 text-danger">
+            <Dropdown.Item 
+              onClick={logout} 
+              className="d-flex align-items-center gap-2 py-2"
+              style={{ color: '#EF4444' }}
+            >
               <FaSignOutAlt /> Sign Out
             </Dropdown.Item>
           </Dropdown.Menu>
