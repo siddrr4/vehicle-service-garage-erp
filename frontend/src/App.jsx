@@ -26,8 +26,10 @@ import CustomerDashboard from './pages/Dashboard/CustomerDashboard';
 import MechanicDashboard from './pages/Dashboard/MechanicDashboard';
 import MyVehicles from './pages/Customer/MyVehicles';
 import RequestService from './pages/Customer/RequestService';
+import RoadsideAssistance from './pages/Customer/RoadsideAssistance';
 import MyRequests from './pages/Customer/MyRequests';
 import ServiceRequests from './pages/Appointment/ServiceRequests';
+import AdminRoadsideRequests from './pages/Appointment/AdminRoadsideRequests';
 
 // Appointment Pages
 import AppointmentList from './pages/Appointment/AppointmentList';
@@ -72,6 +74,7 @@ import ReportsDashboard from './pages/Reports/ReportsDashboard';
 import SettingsPage from './pages/Settings/SettingsPage';
 import Notifications from './pages/Notifications';
 import InsuranceRenewal from './pages/Insurance/InsuranceRenewal';
+import InsuranceReceipt from './pages/Insurance/InsuranceReceipt';
 
 const DashboardRedirect = () => {
   const { user } = useContext(AuthContext);
@@ -111,6 +114,7 @@ function App() {
             <Route path="/customer-dashboard" element={<CustomerDashboard />} />
             <Route path="/my-vehicles" element={<MyVehicles />} />
             <Route path="/request-service" element={<RequestService />} />
+            <Route path="/roadside-assistance" element={<RoadsideAssistance />} />
             <Route path="/my-requests" element={<MyRequests />} />
             <Route path="/vehicles/:id" element={<VehicleDetails />} />
             <Route path="/my-job-cards" element={<MyJobCards />} />
@@ -123,6 +127,7 @@ function App() {
             <Route path="/payslips/:id" element={<PayslipView />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/insurance-renewal/:vehicleId" element={<InsuranceRenewal />} />
+            <Route path="/insurance-receipt/:id" element={<InsuranceReceipt />} />
           </Route>
           
           {/* Mechanic Protected Routes */}
@@ -155,6 +160,7 @@ function App() {
             <Route path="/walk-in" element={<WalkInService />} />
             <Route path="/waiting-queue" element={<WaitingQueue />} />
             <Route path="/service-requests" element={<ServiceRequests />} />
+            <Route path="/admin/roadside-assistance" element={<AdminRoadsideRequests />} />
             <Route path="/appointments/book" element={<BookAppointment />} />
             <Route path="/appointments/edit/:id" element={<EditAppointment />} />
             <Route path="/appointments/:id" element={<AppointmentDetails />} />

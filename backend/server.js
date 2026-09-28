@@ -29,6 +29,7 @@ import salaryRoutes from './routes/salaryRoutes.js';
 import payrollRoutes from './routes/payrollRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import insuranceRenewalRoutes from './routes/insuranceRenewalRoutes.js';
+import roadsideRoutes from './routes/roadsideRoutes.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 
 dotenv.config();
@@ -84,6 +85,7 @@ app.use('/api/salary', salaryRoutes);
 app.use('/api/payroll', payrollRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/insurance-renewals', insuranceRenewalRoutes);
+app.use('/api/roadside-assistance', roadsideRoutes);
 
 app.get('/', (req, res) => {
   res.send('API is running...');

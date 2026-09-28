@@ -34,6 +34,12 @@ const notificationSchema = new mongoose.Schema(
         'RECOMMENDATION_ADDED',
         'RECOMMENDATION_APPROVED',
         'RECOMMENDATION_REJECTED',
+        'ROADSIDE_REQUESTED',
+        'ROADSIDE_DISPATCHED',
+        'ROADSIDE_RESOLVED',
+        'ROADSIDE_PICKUP_DISPATCHED',
+        'ROADSIDE_VEHICLE_PICKED_UP',
+        'ROADSIDE_ARRIVED_SHOWROOM',
       ],
       required: [true, 'Notification type is required'],
       index: true,
@@ -50,7 +56,7 @@ const notificationSchema = new mongoose.Schema(
     },
     relatedEntityType: {
       type: String,
-      enum: ['Appointment', 'JobCard', 'Invoice', 'Vehicle', 'SparePart', 'Payroll', 'WaitingQueue', 'InsuranceRenewal'],
+      enum: ['Appointment', 'JobCard', 'Invoice', 'Vehicle', 'SparePart', 'Payroll', 'WaitingQueue', 'InsuranceRenewal', 'RoadsideAssistance'],
       required: false,
     },
     relatedEntityId: {

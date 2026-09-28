@@ -108,7 +108,8 @@ export const formatTimeIST = (date, options = {}) => {
     hour12: true,
     ...options,
   };
-  return d.toLocaleTimeString('en-IN', defaultOptions);
+  const str = d.toLocaleTimeString('en-IN', defaultOptions);
+  return str.replace(/\b(am|pm)\b/gi, (m) => m.toUpperCase());
 };
 
 /**

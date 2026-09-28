@@ -48,9 +48,25 @@ const insuranceRenewalSchema = new mongoose.Schema(
       required: [true, 'Renewal amount is required'],
       min: [1, 'Renewal amount must be greater than zero'],
     },
+    paidAmount: {
+      type: Number,
+      default: 0,
+    },
+    premiumAmount: {
+      type: Number,
+      default: 0,
+    },
+    gstAmount: {
+      type: Number,
+      default: 0,
+    },
+    gstRate: {
+      type: Number,
+      default: 18,
+    },
     paymentStatus: {
       type: String,
-      enum: ['Pending', 'Completed', 'Failed'],
+      enum: ['Pending', 'Completed', 'Paid', 'PAID', 'Failed'],
       default: 'Pending',
       index: true,
     },
@@ -69,6 +85,10 @@ const insuranceRenewalSchema = new mongoose.Schema(
     paymentDate: {
       type: Date,
       default: null,
+    },
+    paymentDateIST: {
+      type: String,
+      default: '',
     },
     failureReason: {
       type: String,

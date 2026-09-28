@@ -391,7 +391,7 @@ export const getInvoices = async (req, res) => {
       .populate('vehicle', 'vehicleNumber brand model')
       .populate({
         path: 'jobCard',
-        select: 'jobNumber estimatedDeliveryDate status',
+        select: 'jobNumber estimatedDeliveryDate deliveryTime status',
         populate: { path: 'assignedMechanic', select: 'fullName' }
       })
       .sort({ createdAt: -1 })

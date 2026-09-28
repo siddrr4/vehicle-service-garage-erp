@@ -1,14 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { getCustomers } from '../../services/customerService';
-import { createVehicle } from '../../services/vehicleService';
+import { createVehicle, checkVehicleUniqueness } from '../../services/vehicleService';
 import { toast } from 'react-toastify';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
-import { FaCar, FaUser, FaFileAlt, FaInfoCircle } from 'react-icons/fa';
+import { FaCar, FaUser, FaFileAlt, FaInfoCircle, FaCheckCircle } from 'react-icons/fa';
 
 const FUEL_TYPES = ['Petrol', 'Diesel', 'CNG', 'Electric', 'Hybrid'];
 const TRANSMISSION_TYPES = ['Manual', 'Automatic'];
 const CURRENT_YEAR = new Date().getFullYear();
+const KA20_REGEX = /^KA\s*20\s*[A-Z]{1,3}\s*\d{1,4}$/i;
 
 const initialFormState = {
   customerId: '',
@@ -43,6 +44,7 @@ const VehicleRegistration = () => {
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState('');
+  const debounceTimers = useRef({});
 
   useEffect(() => {
     const fetchAllCustomers = async () => {
@@ -59,6 +61,47 @@ const VehicleRegistration = () => {
     fetchAllCustomers();
   }, []);
 
+  const triggerUniquenessCheck = (field, rawVal) => {
+    const val = (rawVal || '').trim();
+    if (debounceTimers.current[field]) {
+      clearTimeout(debounceTimers.current[field]);
+    }
+    if (!val) {
+      setErrors((prev) => {
+        const updated = { ...prev };
+        delete updated[field];
+        return updated;
+      });
+      return;
+    }
+
+    if (field === 'vehicleNumber') {
+      if (!KA20_REGEX.test(val)) {
+        setErrors((prev) => ({ ...prev, vehicleNumber: 'Only KA 20 registered vehicles are allowed.' }));
+        return;
+      }
+    }
+
+    debounceTimers.current[field] = setTimeout(async () => {
+      try {
+        const result = await checkVehicleUniqueness(field, val);
+        if (result && result.available === false) {
+          setErrors((prev) => ({ ...prev, [field]: result.message }));
+        } else {
+          setErrors((prev) => {
+            const updated = { ...prev };
+            if (updated[field] && updated[field].includes('already registered')) {
+              delete updated[field];
+            }
+            return updated;
+          });
+        }
+      } catch (err) {
+        // Ignore background check network errors
+      }
+    }, 350);
+  };
+
   const onChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => {
@@ -69,23 +112,126 @@ const VehicleRegistration = () => {
       return updated;
     });
     if (serverError) setServerError('');
-    // Clear the individual field error on change
-    setErrors((prev) => {
-      const updatedErrors = { ...prev };
-      if (updatedErrors[name]) {
-        delete updatedErrors[name];
+
+    // Immediate field validation
+    if (name === 'vehicleNumber') {
+      const val = value.trim();
+      if (!val) {
+        setErrors((prev) => ({ ...prev, vehicleNumber: 'Vehicle number is required.' }));
+      } else if (!KA20_REGEX.test(val)) {
+        setErrors((prev) => ({ ...prev, vehicleNumber: 'Only KA 20 registered vehicles are allowed.' }));
+      } else {
+        setErrors((prev) => {
+          const updated = { ...prev };
+          if (updated.vehicleNumber && !updated.vehicleNumber.includes('already registered')) {
+            delete updated.vehicleNumber;
+          }
+          return updated;
+        });
+        triggerUniquenessCheck('vehicleNumber', val);
       }
-      if (name === 'purchaseType' && value === 'New') {
-        delete updatedErrors.currentOdometerReading;
+    } else if (name === 'chassisNumber') {
+      const val = value.trim();
+      if (val.length > 17) {
+        setErrors((prev) => ({ ...prev, chassisNumber: 'Chassis number cannot exceed 17 characters' }));
+      } else {
+        setErrors((prev) => {
+          const updated = { ...prev };
+          if (updated.chassisNumber && !updated.chassisNumber.includes('already registered')) {
+            delete updated.chassisNumber;
+          }
+          return updated;
+        });
+        triggerUniquenessCheck('chassisNumber', val);
       }
-      return updatedErrors;
-    });
+    } else if (name === 'engineNumber') {
+      const val = value.trim();
+      setErrors((prev) => {
+        const updated = { ...prev };
+        if (updated.engineNumber && !updated.engineNumber.includes('already registered')) {
+          delete updated.engineNumber;
+        }
+        return updated;
+      });
+      triggerUniquenessCheck('engineNumber', val);
+    } else if (name === 'insuranceNumber') {
+      const val = value.trim();
+      if (val.length > 50) {
+        setErrors((prev) => ({ ...prev, insuranceNumber: 'Insurance number cannot exceed 50 characters' }));
+      } else {
+        setErrors((prev) => {
+          const updated = { ...prev };
+          if (updated.insuranceNumber && !updated.insuranceNumber.includes('already registered')) {
+            delete updated.insuranceNumber;
+          }
+          return updated;
+        });
+        triggerUniquenessCheck('insuranceNumber', val);
+      }
+    } else {
+      setErrors((prev) => {
+        const updatedErrors = { ...prev };
+        if (updatedErrors[name]) {
+          delete updatedErrors[name];
+        }
+        if (name === 'purchaseType' && value === 'New') {
+          delete updatedErrors.currentOdometerReading;
+        }
+        return updatedErrors;
+      });
+    }
+  };
+
+  const onBlurCheck = async (field) => {
+    if (debounceTimers.current[field]) {
+      clearTimeout(debounceTimers.current[field]);
+    }
+    const val = formData[field]?.trim();
+    if (!val) return;
+
+    if (field === 'vehicleNumber') {
+      if (!KA20_REGEX.test(val)) {
+        setErrors((prev) => ({ ...prev, vehicleNumber: 'Only KA 20 registered vehicles are allowed.' }));
+        return;
+      }
+    }
+
+    try {
+      const result = await checkVehicleUniqueness(field, val);
+      if (result && result.available === false) {
+        setErrors((prev) => ({ ...prev, [field]: result.message }));
+      } else {
+        setErrors((prev) => {
+          const updated = { ...prev };
+          if (updated[field] && updated[field].includes('already registered')) {
+            delete updated[field];
+          }
+          return updated;
+        });
+      }
+    } catch (err) {
+      // Ignore background check network errors
+    }
   };
 
   const validate = () => {
     const newErrors = {};
     if (!formData.customerId) newErrors.customerId = 'Please select a customer.';
-    if (!formData.vehicleNumber.trim()) newErrors.vehicleNumber = 'Vehicle number is required.';
+    
+    if (!formData.vehicleNumber.trim()) {
+      newErrors.vehicleNumber = 'Vehicle number is required.';
+    } else if (!KA20_REGEX.test(formData.vehicleNumber.trim())) {
+      newErrors.vehicleNumber = 'Only KA 20 registered vehicles are allowed.';
+    }
+
+    if (formData.chassisNumber && formData.chassisNumber.trim().length > 17) {
+      newErrors.chassisNumber = 'Chassis number cannot exceed 17 characters';
+    }
+
+    if (formData.insuranceNumber && formData.insuranceNumber.trim().length > 50) {
+      newErrors.insuranceNumber = 'Insurance number cannot exceed 50 characters';
+    }
+
     if (!formData.brand.trim()) newErrors.brand = 'Brand is required.';
     if (!formData.model.trim()) newErrors.model = 'Model is required.';
     if (!formData.manufacturingYear) newErrors.manufacturingYear = 'Manufacturing year is required.';
@@ -106,10 +252,37 @@ const VehicleRegistration = () => {
   const onSubmit = async (e) => {
     e.preventDefault();
     const validationErrors = validate();
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
-      toast.error('Please fill all required fields.');
+
+    // Preserve any active duplicate errors
+    const combinedErrors = { ...errors, ...validationErrors };
+    if (Object.keys(combinedErrors).length > 0) {
+      setErrors(combinedErrors);
+      toast.error('Please fix the errors before registering.');
       return;
+    }
+
+    // Verify uniqueness for all provided identifiers right before create
+    const checkFields = [
+      { field: 'vehicleNumber', val: formData.vehicleNumber },
+      { field: 'chassisNumber', val: formData.chassisNumber },
+      { field: 'engineNumber', val: formData.engineNumber },
+      { field: 'insuranceNumber', val: formData.insuranceNumber }
+    ];
+
+    for (const item of checkFields) {
+      const val = item.val?.trim();
+      if (val) {
+        try {
+          const res = await checkVehicleUniqueness(item.field, val);
+          if (res && res.available === false) {
+            setErrors((prev) => ({ ...prev, [item.field]: res.message }));
+            toast.error(res.message);
+            return;
+          }
+        } catch (err) {
+          // let backend catch on submit
+        }
+      }
     }
 
     try {
@@ -271,16 +444,22 @@ const VehicleRegistration = () => {
               <input
                 id="vehicleNumber"
                 type="text"
-                className={`form-control ${errors.vehicleNumber ? 'is-invalid' : ''}`}
+                className={`form-control ${errors.vehicleNumber ? 'is-invalid' : (formData.vehicleNumber.trim() && KA20_REGEX.test(formData.vehicleNumber.trim())) ? 'is-valid' : ''}`}
                 name="vehicleNumber"
                 value={formData.vehicleNumber}
                 onChange={onChange}
-                placeholder="e.g. MH12AB1234"
+                onBlur={() => onBlurCheck('vehicleNumber')}
+                placeholder="e.g. KA 20 EH 0627"
                 style={{ textTransform: 'uppercase' }}
                 required
               />
               {errors.vehicleNumber && (
-                <div className="invalid-feedback">{errors.vehicleNumber}</div>
+                <div className="invalid-feedback d-block">✕ {errors.vehicleNumber}</div>
+              )}
+              {!errors.vehicleNumber && formData.vehicleNumber.trim() && KA20_REGEX.test(formData.vehicleNumber.trim()) && (
+                <div className="valid-feedback d-block text-success small mt-1 fw-medium">
+                  ✓ Valid KA 20 registration
+                </div>
               )}
             </div>
 
@@ -445,10 +624,11 @@ const VehicleRegistration = () => {
                 name="engineNumber"
                 value={formData.engineNumber}
                 onChange={onChange}
+                onBlur={() => onBlurCheck('engineNumber')}
                 placeholder="Optional"
               />
               {errors.engineNumber && (
-                <div className="invalid-feedback">{errors.engineNumber}</div>
+                <div className="invalid-feedback d-block">✕ {errors.engineNumber}</div>
               )}
             </div>
 
@@ -463,11 +643,12 @@ const VehicleRegistration = () => {
                 name="chassisNumber"
                 value={formData.chassisNumber}
                 onChange={onChange}
+                onBlur={() => onBlurCheck('chassisNumber')}
                 maxLength="17"
                 placeholder="Up to 17 characters"
               />
               {errors.chassisNumber && (
-                <div className="invalid-feedback">{errors.chassisNumber}</div>
+                <div className="invalid-feedback d-block">✕ {errors.chassisNumber}</div>
               )}
             </div>
 
@@ -482,11 +663,12 @@ const VehicleRegistration = () => {
                 name="insuranceNumber"
                 value={formData.insuranceNumber}
                 onChange={onChange}
+                onBlur={() => onBlurCheck('insuranceNumber')}
                 maxLength="50"
                 placeholder="Optional"
               />
               {errors.insuranceNumber && (
-                <div className="invalid-feedback">{errors.insuranceNumber}</div>
+                <div className="invalid-feedback d-block">✕ {errors.insuranceNumber}</div>
               )}
             </div>
 

@@ -1,6 +1,7 @@
 import JobCard from '../models/JobCard.js';
 import Appointment from '../models/Appointment.js';
 import Employee from '../models/Employee.js';
+import Customer from '../models/Customer.js';
 import SparePart from '../models/SparePart.js';
 import Attendance from '../models/Attendance.js';
 import Vehicle from '../models/Vehicle.js';
@@ -147,14 +148,38 @@ export const getJobCards = async (req, res) => {
 // @access  Private (Customer)
 export const getMyJobCards = async (req, res) => {
   try {
-    if (!req.user || !req.user.customerRef) {
-      return res.status(404).json({ message: 'No customer profile linked to this account.' });
+    if (!req.user) {
+      return res.status(401).json({ message: 'Not authorized, no user found' });
     }
 
-    const jobCards = await JobCard.find({ customer: req.user.customerRef })
+    let customerId = req.user.customerRef;
+    if (!customerId) {
+      const customerDoc = await Customer.findOne({
+        $or: [
+          { userId: req.user._id },
+          { emailAddress: req.user.email?.toLowerCase() },
+          { mobileNumber: req.user.phone }
+        ]
+      }).select('_id');
+      if (customerDoc) {
+        customerId = customerDoc._id;
+      }
+    }
+
+    // If no customer profile is linked, return an empty array instead of 404 error
+    if (!customerId) {
+      return res.json([]);
+    }
+
+    const customerIds = [customerId];
+    if (req.user.customerRef && req.user.customerRef.toString() !== customerId.toString()) {
+      customerIds.push(req.user.customerRef);
+    }
+
+    const jobCards = await JobCard.find({ customer: { $in: customerIds } })
       .populate('vehicle', 'vehicleNumber brand model')
       .populate('serviceRequest', 'appointmentDate serviceType')
-      .populate('assignedMechanic', 'fullName employeeId phone')
+      .populate('assignedMechanic', 'fullName employeeId phone specialization')
       .populate('partsUsed.part')
       .sort({ createdAt: -1 });
 
@@ -165,10 +190,11 @@ export const getMyJobCards = async (req, res) => {
         if (invoice) {
           jcObj.invoice = {
             _id: invoice._id,
+            invoiceNumber: invoice.invoiceNumber || '',
             status: invoice.status,
-            balanceDue: invoice.balanceDue,
-            grandTotal: invoice.grandTotal,
-            amountPaid: invoice.amountPaid
+            balanceDue: typeof invoice.balanceDue === 'number' ? invoice.balanceDue : 0,
+            grandTotal: typeof invoice.grandTotal === 'number' ? invoice.grandTotal : 0,
+            amountPaid: typeof invoice.amountPaid === 'number' ? invoice.amountPaid : 0
           };
         } else {
           jcObj.invoice = null;
@@ -179,6 +205,7 @@ export const getMyJobCards = async (req, res) => {
 
     res.json(jobCardsWithInvoices);
   } catch (error) {
+    console.error('Error fetching customer job cards:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -239,8 +266,33 @@ export const getJobCardById = async (req, res) => {
 
     if (jobCard) {
       // If user is a customer, ensure it's their job card
-      if (req.user.role === 'customer' && jobCard.customer._id.toString() !== req.user.customerRef.toString()) {
-        return res.status(403).json({ message: 'Not authorized to view this job card' });
+      if (req.user.role === 'customer') {
+        let customerId = req.user.customerRef;
+        if (!customerId) {
+          const customerDoc = await Customer.findOne({
+            $or: [
+              { userId: req.user._id },
+              { emailAddress: req.user.email?.toLowerCase() },
+              { mobileNumber: req.user.phone }
+            ]
+          }).select('_id');
+          if (customerDoc) customerId = customerDoc._id;
+        }
+
+        const jobCardCustomerId = jobCard.customer?._id
+          ? jobCard.customer._id.toString()
+          : jobCard.customer?.toString();
+
+        const userCustIdStr = customerId ? customerId.toString() : '';
+        const userRefStr = req.user.customerRef ? req.user.customerRef.toString() : '';
+
+        if (!userCustIdStr && !userRefStr) {
+          return res.status(403).json({ message: 'Not authorized to view this job card' });
+        }
+
+        if (jobCardCustomerId !== userCustIdStr && jobCardCustomerId !== userRefStr) {
+          return res.status(403).json({ message: 'Not authorized to view this job card' });
+        }
       }
       res.json(jobCard);
     } else {

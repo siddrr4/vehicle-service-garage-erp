@@ -7,6 +7,7 @@ import {
   deleteVehicle,
   getMyVehicles,
   lookupVehicleByRegNumber,
+  checkVehicleUniqueness,
 } from '../controllers/vehicleController.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
 
@@ -16,6 +17,10 @@ const router = express.Router();
 router.route('/')
   .get(protect, getVehicles)
   .post(protect, createVehicle);
+
+// Real-time uniqueness validation check
+router.route('/check-unique')
+  .get(protect, checkVehicleUniqueness);
 
 // Lookup vehicle by registration number (for Walk-in Service)
 router.route('/lookup/:regNumber')

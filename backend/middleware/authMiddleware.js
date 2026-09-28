@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import Customer from '../models/Customer.js';
 
 const protect = async (req, res, next) => {
   let token;
@@ -12,6 +13,18 @@ const protect = async (req, res, next) => {
       token = req.headers.authorization.split(' ')[1];
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       req.user = await User.findById(decoded.id).select('-password');
+      if (req.user && req.user.role === 'customer' && !req.user.customerRef) {
+        const custDoc = await Customer.findOne({
+          $or: [
+            { userId: req.user._id },
+            { emailAddress: req.user.email?.toLowerCase() },
+            { mobileNumber: req.user.phone }
+          ]
+        }).select('_id');
+        if (custDoc) {
+          req.user.customerRef = custDoc._id;
+        }
+      }
       next();
     } catch (error) {
       console.error(error);

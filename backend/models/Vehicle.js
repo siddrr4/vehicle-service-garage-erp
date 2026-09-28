@@ -13,6 +13,11 @@ const vehicleSchema = new mongoose.Schema({
     trim: true,
     uppercase: true
   },
+  normalizedVehicleNumber: {
+    type: String,
+    trim: true,
+    uppercase: true
+  },
   brand: {
     type: String,
     required: [true, 'Brand is required']
@@ -126,8 +131,20 @@ vehicleSchema.index(
   }
 );
 
-// Pre-save hook: ensure blank strings are converted to undefined
+// Partial unique index for normalized vehicle number
+vehicleSchema.index(
+  { normalizedVehicleNumber: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { normalizedVehicleNumber: { $type: 'string', $gt: '' } },
+  }
+);
+
+// Pre-save hook: ensure blank strings are converted to undefined and normalizedVehicleNumber is set
 vehicleSchema.pre('save', function () {
+  if (this.vehicleNumber && typeof this.vehicleNumber === 'string') {
+    this.normalizedVehicleNumber = this.vehicleNumber.toUpperCase().replace(/\s+/g, '');
+  }
   if (this.chassisNumber !== undefined && (this.chassisNumber === null || (typeof this.chassisNumber === 'string' && this.chassisNumber.trim() === ''))) {
     this.chassisNumber = undefined;
   }

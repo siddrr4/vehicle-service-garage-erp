@@ -179,8 +179,11 @@ const BillingList = () => {
                           <Link to={`/billing/invoice/${inv._id}`} className="btn btn-sm btn-success text-white d-flex align-items-center gap-1">
                             <FaPrint size={11} /> <span>View/Print</span>
                           </Link>
-                          <Link to={`/job-cards/${inv.jobCard?._id}`} className="btn btn-sm btn-light border text-navy">
-                            Job Card <FaArrowRight size={10} />
+                          <Link 
+                            to={inv.jobCard?._id ? `/job-cards/${inv.jobCard._id}` : '/job-cards'} 
+                            className="btn btn-sm btn-navy d-flex align-items-center gap-1"
+                          >
+                            <span>Job Card</span> <FaArrowRight size={10} />
                           </Link>
                         </div>
                       </td>

@@ -44,8 +44,16 @@ const appointmentSchema = new mongoose.Schema({
   },
   bookingType: {
     type: String,
-    enum: ['Online', 'Walk-in'],
+    enum: ['Online', 'Walk-in', 'Roadside'],
     default: 'Online'
+  },
+  breakdownLocation: {
+    latitude: { type: Number },
+    longitude: { type: Number },
+    address: { type: String },
+    landmark: { type: String },
+    distanceKm: { type: Number },
+    contactPhone: { type: String }
   },
   advisorRecommendation: {
     recommendationText: { type: String },

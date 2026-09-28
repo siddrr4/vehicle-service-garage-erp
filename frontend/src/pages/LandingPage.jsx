@@ -131,6 +131,13 @@ const LandingPage = () => {
                     >
                       Book Service
                     </button>
+                    <button 
+                      className="btn btn-outline-danger btn-lg px-3 d-inline-flex align-items-center gap-2"
+                      onClick={() => navigate('/roadside-assistance')}
+                      style={{ borderColor: 'rgba(239, 68, 68, 0.6)', color: '#F87171' }}
+                    >
+                      <span>🚨 Roadside Assistance (20 km)</span>
+                    </button>
                   </div>
 
                   {/* Trust Micro-Metrics */}

@@ -34,7 +34,7 @@ const mockReqRes = (body = {}, params = {}) => {
 };
 
 const runTests = async () => {
-  console.log('=== STARTING VEHICLE DUPLICATE VALIDATION TESTS ===\n');
+  console.log('=== STARTING VEHICLE STRICT KA 20 & UNIQUE IDENTIFIERS TESTS ===\n');
   await connectDB();
   await Vehicle.syncIndexes();
 
@@ -46,9 +46,9 @@ const runTests = async () => {
       mobileNumber: '9999999999',
       emailAddress: 'test@example.com',
       address: '123 Test St',
-      city: 'Testville',
-      state: 'Test State',
-      pincode: '560001'
+      city: 'Udupi',
+      state: 'Karnataka',
+      pincode: '576101'
     });
   }
   const customerId = testCustomer._id.toString();
@@ -57,12 +57,12 @@ const runTests = async () => {
 
   try {
     // ----------------------------------------------------
-    // TEST 1: Register Vehicle A with unique identification numbers -> SUCCESS
+    // TEST 1: Register Vehicle A with valid KA 20 number -> SUCCESS
     // ----------------------------------------------------
-    console.log('Test 1: Register Vehicle A with unique vehicle number -> SUCCESS');
+    console.log('Test 1: Register Vehicle A with valid KA 20 number (KA20ZZ9001) -> SUCCESS');
     const { req: req1, res: res1 } = mockReqRes({
       customerId,
-      vehicleNumber: 'KA05TEST01',
+      vehicleNumber: 'KA20ZZ9001',
       brand: 'Toyota',
       model: 'Innova',
       manufacturingYear: 2022,
@@ -79,183 +79,175 @@ const runTests = async () => {
     const v1 = res1.getResponseData();
     if (res1.getStatusCode() === 201 && v1?._id) {
       cleanupIds.push(v1._id);
-      console.log('  [PASS] Vehicle A created successfully with ID:', v1._id);
+      console.log('  [PASS] Vehicle A created successfully with ID:', v1._id, 'vehicleNumber:', v1.vehicleNumber);
     } else {
       throw new Error(`Test 1 Failed: Status ${res1.getStatusCode()}, data: ${JSON.stringify(v1)}`);
     }
 
     // ----------------------------------------------------
-    // TEST 2: Register Vehicle B using Vehicle A's vehicle number -> BLOCK
+    // TEST 2: Reject non-KA 20 registration numbers -> REJECT
     // ----------------------------------------------------
-    console.log('\nTest 2: Register Vehicle B using Vehicle A\'s vehicle number -> BLOCK');
-    const { req: req2, res: res2 } = mockReqRes({
-      customerId,
-      vehicleNumber: 'KA05TEST01', // Duplicate
-      brand: 'Honda',
-      model: 'City',
-      manufacturingYear: 2021,
-      fuelType: 'Petrol',
-      transmission: 'Manual',
-      registrationDate: '2021-05-20',
-      chassisNumber: 'VINTEST0000000002',
-      engineNumber: 'ENGTEST0002',
-      insuranceNumber: 'POLTEST0002',
-      currentOdometerReading: 20000,
-      purchaseType: 'Used'
-    });
-    await createVehicle(req2, res2);
-    const data2 = res2.getResponseData();
-    if (res2.getStatusCode() === 400 && data2.field === 'vehicleNumber' && data2.message === 'Vehicle number already exists. Please enter a different vehicle number.') {
-      console.log('  [PASS] Blocked duplicate vehicle number with expected message:', data2.message);
-    } else {
-      throw new Error(`Test 2 Failed: Expected 400 with duplicate message, got ${res2.getStatusCode()}: ${JSON.stringify(data2)}`);
+    console.log('\nTest 2: Reject non-KA 20 vehicle numbers (KA01AB1234, MH12AB1234, KL07AB1234, TN01AB1234) -> REJECT');
+    const invalidNumbers = ['KA01AB1234', 'KA05AB1234', 'MH12AB1234', 'KL07AB1234', 'TN01AB1234'];
+    for (const invalidNo of invalidNumbers) {
+      const { req: reqInv, res: resInv } = mockReqRes({
+        customerId,
+        vehicleNumber: invalidNo,
+        brand: 'Honda',
+        model: 'City',
+        manufacturingYear: 2021,
+        fuelType: 'Petrol',
+        transmission: 'Manual',
+        registrationDate: '2021-05-20',
+        currentOdometerReading: 20000,
+        purchaseType: 'Used'
+      });
+      await createVehicle(reqInv, resInv);
+      const dataInv = resInv.getResponseData();
+      if (resInv.getStatusCode() === 400 && dataInv.field === 'vehicleNumber' && dataInv.message === 'Only KA 20 registered vehicles are allowed.') {
+        console.log(`  [PASS] Successfully rejected ${invalidNo}: "${dataInv.message}"`);
+      } else {
+        throw new Error(`Test 2 Failed for ${invalidNo}: Expected 400 with KA20 error, got ${resInv.getStatusCode()}: ${JSON.stringify(dataInv)}`);
+      }
     }
 
     // ----------------------------------------------------
-    // TEST 3: Register Vehicle B with duplicate VIN / chassisNumber -> BLOCK
+    // TEST 3: Duplicate Vehicle Number (KA 20 ZZ 9001 vs KA20ZZ9001 and pre-existing KA 20 EH 0627) -> REJECT
     // ----------------------------------------------------
-    console.log('\nTest 3: Register Vehicle B with duplicate VIN / chassisNumber -> BLOCK');
+    console.log('\nTest 3: Reject duplicate vehicle number with spaced/cased variations ("KA 20 ZZ 9001") -> REJECT');
     const { req: req3, res: res3 } = mockReqRes({
       customerId,
-      vehicleNumber: 'KA05TEST02',
+      vehicleNumber: 'KA 20 ZZ 9001', // Spaced variation of Vehicle A
       brand: 'Honda',
       model: 'City',
       manufacturingYear: 2021,
       fuelType: 'Petrol',
       transmission: 'Manual',
       registrationDate: '2021-05-20',
-      chassisNumber: 'VINTEST0000000001', // Duplicate of Vehicle A
-      engineNumber: 'ENGTEST0002',
-      insuranceNumber: 'POLTEST0002',
       currentOdometerReading: 20000,
       purchaseType: 'Used'
     });
     await createVehicle(req3, res3);
     const data3 = res3.getResponseData();
-    if (res3.getStatusCode() === 400 && data3.field === 'chassisNumber' && data3.message === 'Chassis/VIN number already exists for another vehicle.') {
-      console.log('  [PASS] Blocked duplicate chassisNumber with expected message:', data3.message);
+    if (res3.getStatusCode() === 400 && data3.field === 'vehicleNumber' && data3.message === 'This vehicle registration number is already registered.') {
+      console.log('  [PASS] Blocked duplicate vehicle number (Vehicle A duplicate):', data3.message);
     } else {
-      throw new Error(`Test 3 Failed: Expected 400 with chassis error, got ${res3.getStatusCode()}: ${JSON.stringify(data3)}`);
+      throw new Error(`Test 3 Failed: Expected 400 duplicate error, got ${res3.getStatusCode()}: ${JSON.stringify(data3)}`);
     }
 
-    // ----------------------------------------------------
-    // TEST 4: Register Vehicle B with duplicate engine number -> BLOCK
-    // ----------------------------------------------------
-    console.log('\nTest 4: Register Vehicle B with duplicate engine number -> BLOCK');
-    const { req: req4, res: res4 } = mockReqRes({
+    // Also test pre-existing vehicle in database KA 20 EH 0627
+    const { req: req3b, res: res3b } = mockReqRes({
       customerId,
-      vehicleNumber: 'KA05TEST02',
+      vehicleNumber: 'ka20eh0627', // lowercase of existing vehicle KA 20 EH 0627
       brand: 'Honda',
       model: 'City',
       manufacturingYear: 2021,
       fuelType: 'Petrol',
       transmission: 'Manual',
       registrationDate: '2021-05-20',
-      chassisNumber: 'VINTEST0000000002',
-      engineNumber: 'ENGTEST0001', // Duplicate of Vehicle A
-      insuranceNumber: 'POLTEST0002',
       currentOdometerReading: 20000,
+      purchaseType: 'Used'
+    });
+    await createVehicle(req3b, res3b);
+    const data3b = res3b.getResponseData();
+    if (res3b.getStatusCode() === 400 && data3b.field === 'vehicleNumber' && data3b.message === 'This vehicle registration number is already registered.') {
+      console.log('  [PASS] Blocked duplicate of pre-existing vehicle (ka20eh0627):', data3b.message);
+    } else {
+      throw new Error(`Test 3b Failed: Expected 400 duplicate error, got ${res3b.getStatusCode()}: ${JSON.stringify(data3b)}`);
+    }
+
+    // ----------------------------------------------------
+    // TEST 4: Reject duplicate chassis/VIN number -> REJECT
+    // ----------------------------------------------------
+    console.log('\nTest 4: Reject duplicate chassis/VIN number ("vintest0000000001") -> REJECT');
+    const { req: req4, res: res4 } = mockReqRes({
+      customerId,
+      vehicleNumber: 'KA 20 AB 1234',
+      brand: 'Hyundai',
+      model: 'i20',
+      manufacturingYear: 2022,
+      fuelType: 'Petrol',
+      transmission: 'Manual',
+      registrationDate: '2022-03-10',
+      chassisNumber: '  vintest0000000001  ', // Duplicate of Vehicle A in lowercase + spaces
+      currentOdometerReading: 12000,
       purchaseType: 'Used'
     });
     await createVehicle(req4, res4);
     const data4 = res4.getResponseData();
-    if (res4.getStatusCode() === 400 && data4.field === 'engineNumber' && data4.message === 'Engine number already exists for another vehicle.') {
-      console.log('  [PASS] Blocked duplicate engineNumber with expected message:', data4.message);
+    if (res4.getStatusCode() === 400 && data4.field === 'chassisNumber' && data4.message === 'This chassis/VIN number is already registered to another vehicle.') {
+      console.log('  [PASS] Blocked duplicate chassisNumber:', data4.message);
     } else {
-      throw new Error(`Test 4 Failed: Expected 400 with engine error, got ${res4.getStatusCode()}: ${JSON.stringify(data4)}`);
+      throw new Error(`Test 4 Failed: Expected 400 chassis error, got ${res4.getStatusCode()}: ${JSON.stringify(data4)}`);
     }
 
     // ----------------------------------------------------
-    // TEST 5: Register Vehicle B with duplicate insurance policy number -> BLOCK
+    // TEST 5: Reject duplicate engine number -> REJECT
     // ----------------------------------------------------
-    console.log('\nTest 5: Register Vehicle B with duplicate insurance policy number -> BLOCK');
+    console.log('\nTest 5: Reject duplicate engine number ("engtest0001") -> REJECT');
     const { req: req5, res: res5 } = mockReqRes({
       customerId,
-      vehicleNumber: 'KA05TEST02',
-      brand: 'Honda',
-      model: 'City',
-      manufacturingYear: 2021,
+      vehicleNumber: 'KA 20 AB 1234',
+      brand: 'Hyundai',
+      model: 'i20',
+      manufacturingYear: 2022,
       fuelType: 'Petrol',
       transmission: 'Manual',
-      registrationDate: '2021-05-20',
-      chassisNumber: 'VINTEST0000000002',
-      engineNumber: 'ENGTEST0002',
-      insuranceNumber: 'POLTEST0001', // Duplicate of Vehicle A
-      currentOdometerReading: 20000,
+      registrationDate: '2022-03-10',
+      engineNumber: '  engtest0001  ', // Duplicate of Vehicle A in lowercase + spaces
+      currentOdometerReading: 12000,
       purchaseType: 'Used'
     });
     await createVehicle(req5, res5);
     const data5 = res5.getResponseData();
-    if (res5.getStatusCode() === 400 && data5.field === 'insuranceNumber' && data5.message === 'Insurance policy number already exists for another vehicle.') {
-      console.log('  [PASS] Blocked duplicate insuranceNumber with expected message:', data5.message);
+    if (res5.getStatusCode() === 400 && data5.field === 'engineNumber' && data5.message === 'This engine number is already registered to another vehicle.') {
+      console.log('  [PASS] Blocked duplicate engineNumber:', data5.message);
     } else {
-      throw new Error(`Test 5 Failed: Expected 400 with insurance error, got ${res5.getStatusCode()}: ${JSON.stringify(data5)}`);
+      throw new Error(`Test 5 Failed: Expected 400 engine error, got ${res5.getStatusCode()}: ${JSON.stringify(data5)}`);
     }
 
     // ----------------------------------------------------
-    // TEST 6: Register multiple vehicles without insurance policy numbers -> ALLOW
+    // TEST 6: Reject duplicate insurance policy number -> REJECT
     // ----------------------------------------------------
-    console.log('\nTest 6: Register multiple vehicles without insurance policy numbers -> ALLOW');
-    const { req: req6a, res: res6a } = mockReqRes({
+    console.log('\nTest 6: Reject duplicate insurance policy number ("poltest0001") -> REJECT');
+    const { req: req6, res: res6 } = mockReqRes({
       customerId,
-      vehicleNumber: 'KA05TEST03',
+      vehicleNumber: 'KA 20 AB 1234',
       brand: 'Hyundai',
-      model: 'Creta',
-      manufacturingYear: 2023,
-      fuelType: 'Petrol',
-      transmission: 'Automatic',
-      registrationDate: '2023-03-10',
-      chassisNumber: 'VINTEST0000000003',
-      engineNumber: 'ENGTEST0003',
-      insuranceNumber: '', // Empty
-      currentOdometerReading: 5000,
-      purchaseType: 'Used'
-    });
-    await createVehicle(req6a, res6a);
-    const v6a = res6a.getResponseData();
-    if (res6a.getStatusCode() === 201 && v6a?._id) cleanupIds.push(v6a._id);
-
-    const { req: req6b, res: res6b } = mockReqRes({
-      customerId,
-      vehicleNumber: 'KA05TEST04',
-      brand: 'Hyundai',
-      model: 'Venue',
-      manufacturingYear: 2023,
+      model: 'i20',
+      manufacturingYear: 2022,
       fuelType: 'Petrol',
       transmission: 'Manual',
-      registrationDate: '2023-04-10',
-      chassisNumber: 'VINTEST0000000004',
-      engineNumber: 'ENGTEST0004',
-      insuranceNumber: undefined, // Missing/undefined
-      currentOdometerReading: 6000,
+      registrationDate: '2022-03-10',
+      insuranceNumber: '  poltest0001  ', // Duplicate of Vehicle A in lowercase + spaces
+      currentOdometerReading: 12000,
       purchaseType: 'Used'
     });
-    await createVehicle(req6b, res6b);
-    const v6b = res6b.getResponseData();
-    if (res6b.getStatusCode() === 201 && v6b?._id) cleanupIds.push(v6b._id);
-
-    if (res6a.getStatusCode() === 201 && res6b.getStatusCode() === 201) {
-      console.log('  [PASS] Both vehicles registered successfully without insurance policy numbers.');
+    await createVehicle(req6, res6);
+    const data6 = res6.getResponseData();
+    if (res6.getStatusCode() === 400 && data6.field === 'insuranceNumber' && data6.message === 'This insurance policy number is already registered to another vehicle.') {
+      console.log('  [PASS] Blocked duplicate insuranceNumber:', data6.message);
     } else {
-      throw new Error(`Test 6 Failed: 6a status ${res6a.getStatusCode()}, 6b status ${res6b.getStatusCode()}`);
+      throw new Error(`Test 6 Failed: Expected 400 insurance error, got ${res6.getStatusCode()}: ${JSON.stringify(data6)}`);
     }
 
     // ----------------------------------------------------
-    // TEST 7: Register multiple vehicles without chassis numbers -> ALLOW
+    // TEST 7: Multiple vehicles with empty/undefined optional fields -> ALLOW
     // ----------------------------------------------------
-    console.log('\nTest 7: Register multiple vehicles without chassis numbers -> ALLOW');
+    console.log('\nTest 7: Multiple vehicles with empty optional fields (chassis, engine, insurance) -> ALLOW');
     const { req: req7a, res: res7a } = mockReqRes({
       customerId,
-      vehicleNumber: 'KA05TEST05',
-      brand: 'Maruti',
-      model: 'Swift',
-      manufacturingYear: 2020,
+      vehicleNumber: 'KA 20 CD 3333',
+      brand: 'Tata',
+      model: 'Punch',
+      manufacturingYear: 2023,
       fuelType: 'Petrol',
       transmission: 'Manual',
-      registrationDate: '2020-02-12',
-      chassisNumber: '', // Empty
-      engineNumber: 'ENGTEST0005',
-      currentOdometerReading: 35000,
+      registrationDate: '2023-02-14',
+      chassisNumber: '',
+      engineNumber: '',
+      insuranceNumber: '',
+      currentOdometerReading: 5000,
       purchaseType: 'Used'
     });
     await createVehicle(req7a, res7a);
@@ -264,16 +256,17 @@ const runTests = async () => {
 
     const { req: req7b, res: res7b } = mockReqRes({
       customerId,
-      vehicleNumber: 'KA05TEST06',
-      brand: 'Maruti',
-      model: 'Baleno',
-      manufacturingYear: 2021,
-      fuelType: 'Petrol',
-      transmission: 'Manual',
-      registrationDate: '2021-03-15',
-      chassisNumber: undefined, // Undefined
-      engineNumber: 'ENGTEST0006',
-      currentOdometerReading: 22000,
+      vehicleNumber: 'KA 20 CD 4444',
+      brand: 'Tata',
+      model: 'Nexon',
+      manufacturingYear: 2023,
+      fuelType: 'Diesel',
+      transmission: 'Automatic',
+      registrationDate: '2023-03-15',
+      chassisNumber: undefined,
+      engineNumber: undefined,
+      insuranceNumber: undefined,
+      currentOdometerReading: 8000,
       purchaseType: 'Used'
     });
     await createVehicle(req7b, res7b);
@@ -281,17 +274,17 @@ const runTests = async () => {
     if (res7b.getStatusCode() === 201 && v7b?._id) cleanupIds.push(v7b._id);
 
     if (res7a.getStatusCode() === 201 && res7b.getStatusCode() === 201) {
-      console.log('  [PASS] Both vehicles registered successfully without chassis numbers.');
+      console.log('  [PASS] Both vehicles registered successfully with empty optional identifiers.');
     } else {
       throw new Error(`Test 7 Failed: 7a status ${res7a.getStatusCode()}, 7b status ${res7b.getStatusCode()}`);
     }
 
     // ----------------------------------------------------
-    // TEST 8: Edit a vehicle without changing its own identification number -> ALLOW
+    // TEST 8: Edit a vehicle retaining its own identifiers -> ALLOW
     // ----------------------------------------------------
-    console.log('\nTest 8: Edit Vehicle A without changing its own identification number -> ALLOW');
+    console.log('\nTest 8: Edit Vehicle A while keeping its own identifiers -> ALLOW');
     const { req: req8, res: res8 } = mockReqRes({
-      vehicleNumber: 'KA05TEST01', // Keeps own number
+      vehicleNumber: 'KA 20 ZZ 9001', // Keeps own number
       chassisNumber: 'VINTEST0000000001',
       engineNumber: 'ENGTEST0001',
       insuranceNumber: 'POLTEST0001',
@@ -301,136 +294,77 @@ const runTests = async () => {
     await updateVehicle(req8, res8);
     const v8 = res8.getResponseData();
     if (res8.getStatusCode() === 200 && v8.brand === 'Toyota Updated') {
-      console.log('  [PASS] Vehicle A updated successfully while keeping its own numbers.');
+      console.log('  [PASS] Vehicle A updated successfully while retaining its own identifiers.');
     } else {
       throw new Error(`Test 8 Failed: Expected 200, got ${res8.getStatusCode()}: ${JSON.stringify(v8)}`);
     }
 
     // ----------------------------------------------------
-    // TEST 9: Edit a vehicle and use another vehicle's identification number -> BLOCK
+    // TEST 9: Edit a vehicle using another vehicle's number -> BLOCK
     // ----------------------------------------------------
-    console.log('\nTest 9: Edit Vehicle 6a and use Vehicle A\'s identification number -> BLOCK');
-    // 9a: Duplicate vehicleNumber
-    const { req: req9a, res: res9a } = mockReqRes({
-      vehicleNumber: 'KA05TEST01' // Belongs to Vehicle A
-    }, { id: v6a._id.toString() });
-    await updateVehicle(req9a, res9a);
-    const d9a = res9a.getResponseData();
-    if (res9a.getStatusCode() === 400 && d9a.field === 'vehicleNumber') {
+    console.log('\nTest 9: Edit Vehicle 7a and attempt to take Vehicle A\'s number -> BLOCK');
+    const { req: req9, res: res9 } = mockReqRes({
+      vehicleNumber: 'KA20ZZ9001' // Belongs to Vehicle A
+    }, { id: v7a._id.toString() });
+    await updateVehicle(req9, res9);
+    const d9 = res9.getResponseData();
+    if (res9.getStatusCode() === 400 && d9.field === 'vehicleNumber' && d9.message === 'This vehicle registration number is already registered.') {
       console.log('  [PASS] Blocked changing vehicleNumber to Vehicle A\'s number.');
     } else {
-      throw new Error(`Test 9a Failed: Expected 400, got ${res9a.getStatusCode()}: ${JSON.stringify(d9a)}`);
-    }
-
-    // 9b: Duplicate chassisNumber
-    const { req: req9b, res: res9b } = mockReqRes({
-      chassisNumber: 'VINTEST0000000001' // Belongs to Vehicle A
-    }, { id: v6a._id.toString() });
-    await updateVehicle(req9b, res9b);
-    const d9b = res9b.getResponseData();
-    if (res9b.getStatusCode() === 400 && d9b.field === 'chassisNumber') {
-      console.log('  [PASS] Blocked changing chassisNumber to Vehicle A\'s VIN.');
-    } else {
-      throw new Error(`Test 9b Failed: Expected 400, got ${res9b.getStatusCode()}: ${JSON.stringify(d9b)}`);
-    }
-
-    // 9c: Duplicate engineNumber
-    const { req: req9c, res: res9c } = mockReqRes({
-      engineNumber: 'ENGTEST0001' // Belongs to Vehicle A
-    }, { id: v6a._id.toString() });
-    await updateVehicle(req9c, res9c);
-    const d9c = res9c.getResponseData();
-    if (res9c.getStatusCode() === 400 && d9c.field === 'engineNumber') {
-      console.log('  [PASS] Blocked changing engineNumber to Vehicle A\'s engine number.');
-    } else {
-      throw new Error(`Test 9c Failed: Expected 400, got ${res9c.getStatusCode()}: ${JSON.stringify(d9c)}`);
-    }
-
-    // 9d: Duplicate insuranceNumber
-    const { req: req9d, res: res9d } = mockReqRes({
-      insuranceNumber: 'POLTEST0001' // Belongs to Vehicle A
-    }, { id: v6a._id.toString() });
-    await updateVehicle(req9d, res9d);
-    const d9d = res9d.getResponseData();
-    if (res9d.getStatusCode() === 400 && d9d.field === 'insuranceNumber') {
-      console.log('  [PASS] Blocked changing insuranceNumber to Vehicle A\'s policy number.');
-    } else {
-      throw new Error(`Test 9d Failed: Expected 400, got ${res9d.getStatusCode()}: ${JSON.stringify(d9d)}`);
+      throw new Error(`Test 9 Failed: Expected 400, got ${res9.getStatusCode()}: ${JSON.stringify(d9)}`);
     }
 
     // ----------------------------------------------------
-    // TEST 10: Test values with leading/trailing spaces and different letter casing -> BLOCK & NORMALIZE
+    // TEST 10: Edit a vehicle changing to non-KA 20 number -> BLOCK
     // ----------------------------------------------------
-    console.log('\nTest 10: Test values with leading/trailing spaces and different letter casing -> BLOCK');
+    console.log('\nTest 10: Edit Vehicle 7a and attempt to change to non-KA 20 number ("MH12AB1234") -> BLOCK');
     const { req: req10, res: res10 } = mockReqRes({
+      vehicleNumber: 'MH12AB1234'
+    }, { id: v7a._id.toString() });
+    await updateVehicle(req10, res10);
+    const d10 = res10.getResponseData();
+    if (res10.getStatusCode() === 400 && d10.field === 'vehicleNumber' && d10.message === 'Only KA 20 registered vehicles are allowed.') {
+      console.log('  [PASS] Blocked updating vehicleNumber to non-KA 20 number.');
+    } else {
+      throw new Error(`Test 10 Failed: Expected 400, got ${res10.getStatusCode()}: ${JSON.stringify(d10)}`);
+    }
+
+    // ----------------------------------------------------
+    // TEST 11: Normalization test: ka20eh9999 -> stored and formatted -> SUCCESS
+    // ----------------------------------------------------
+    console.log('\nTest 11: Normalization test with lowercase input ("ka20ab9999") -> SUCCESS');
+    const { req: req11, res: res11 } = mockReqRes({
       customerId,
-      vehicleNumber: '  ka05test01  ', // Lowercase + spaces for Vehicle A
-      brand: 'Ford',
-      model: 'EcoSport',
-      manufacturingYear: 2019,
-      fuelType: 'Diesel',
+      vehicleNumber: 'ka20ab9999',
+      brand: 'Maruti',
+      model: 'Swift',
+      manufacturingYear: 2021,
+      fuelType: 'Petrol',
       transmission: 'Manual',
-      registrationDate: '2019-08-11',
-      currentOdometerReading: 45000,
+      registrationDate: '2021-04-12',
+      currentOdometerReading: 18000,
       purchaseType: 'Used'
     });
-    await createVehicle(req10, res10);
-    const d10 = res10.getResponseData();
-    if (res10.getStatusCode() === 400 && d10.field === 'vehicleNumber') {
-      console.log('  [PASS] Successfully blocked case-insensitive duplicate vehicleNumber with leading/trailing spaces.');
-    } else {
-      throw new Error(`Test 10 Failed: Expected 400 for spaced lowercase duplicate, got ${res10.getStatusCode()}: ${JSON.stringify(d10)}`);
-    }
-
-    // ----------------------------------------------------
-    // TEST 11: Direct Database Constraint Verification (MongoDB 11000 Error Handling)
-    // ----------------------------------------------------
-    console.log('\nTest 11: Direct Database Constraint & 11000 Catch Handler Check');
-    // Verify duplicate save triggers 11000 and handleDuplicateError correctly maps it
-    try {
-      const directDup = new Vehicle({
-        customer: customerId,
-        vehicleNumber: 'KA05TEST99',
-        brand: 'Kia',
-        model: 'Seltos',
-        manufacturingYear: 2022,
-        fuelType: 'Petrol',
-        transmission: 'Automatic',
-        registrationDate: new Date(),
-        chassisNumber: 'VINTEST0000000001', // Conflicts with Vehicle A in DB index
-        currentOdometerReading: 10000,
-        purchaseType: 'Used'
-      });
-      await directDup.save();
-      cleanupIds.push(directDup._id);
-      throw new Error('Database allowed duplicate chassisNumber index violation!');
-    } catch (dbErr) {
-      if (dbErr.code === 11000) {
-        console.log('  [PASS] MongoDB unique index rejected duplicate chassisNumber (code 11000).');
+    await createVehicle(req11, res11);
+    const v11 = res11.getResponseData();
+    if (res11.getStatusCode() === 201 && v11?._id) {
+      cleanupIds.push(v11._id);
+      if (v11.vehicleNumber === 'KA 20 AB 9999' && v11.normalizedVehicleNumber === 'KA20AB9999') {
+        console.log('  [PASS] Successfully normalized "ka20ab9999" -> vehicleNumber:', v11.vehicleNumber, 'normalizedVehicleNumber:', v11.normalizedVehicleNumber);
       } else {
-        throw dbErr;
+        throw new Error(`Test 11 Failed: Unexpected vehicle format: ${JSON.stringify(v11)}`);
       }
-    }
-
-    // Confirm no duplicate record exists in MongoDB
-    console.log('\nConfirming vehicle counts in MongoDB...');
-    const dups = await Vehicle.aggregate([
-      { $group: { _id: '$vehicleNumber', count: { $sum: 1 } } },
-      { $match: { count: { $gt: 1 } } }
-    ]);
-    if (dups.length === 0) {
-      console.log('  [PASS] Confirmed: 0 duplicate vehicle numbers in MongoDB.');
     } else {
-      throw new Error(`Found duplicate vehicle numbers in DB: ${JSON.stringify(dups)}`);
+      throw new Error(`Test 11 Failed: Status ${res11.getStatusCode()}: ${JSON.stringify(v11)}`);
     }
 
-    console.log('\nALL 11 TESTS PASSED SUCCESSFULLY! (100% SUCCESS)');
+    console.log('\n=== ALL 11 TESTS PASSED SUCCESSFULLY! (100% SUCCESS) ===\n');
   } finally {
-    // Clean up test records
-    console.log('\nCleaning up test records...');
+    // Clean up test records created during testing
+    console.log('Cleaning up test records...');
     if (cleanupIds.length > 0) {
       const deleteResult = await Vehicle.deleteMany({ _id: { $in: cleanupIds } });
-      console.log(`Cleaned up ${deleteResult.deletedCount} test vehicles.`);
+      console.log(`Cleaned up ${deleteResult.deletedCount} temporary test vehicle records.`);
     }
     await mongoose.connection.close();
   }

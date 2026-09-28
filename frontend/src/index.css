@@ -146,7 +146,7 @@ a:hover {
 .bg-orange { background-color: var(--orange-accent) !important; color: #080B0A !important; }
 .bg-orange-light { background-color: var(--orange-light) !important; }
 .bg-white { background-color: #111614 !important; color: #FFFFFF !important; border-color: rgba(217, 168, 62, 0.22) !important; }
-.bg-light { background-color: #151A17 !important; color: #A7B0AA !important; border-color: rgba(217, 168, 62, 0.18) !important; }
+.bg-light, .bg-light-subtle { background-color: #151A17 !important; color: #A7B0AA !important; border-color: rgba(217, 168, 62, 0.18) !important; }
 
 .text-navy { color: #FFFFFF !important; }
 .text-orange { color: var(--orange-accent) !important; }
@@ -316,6 +316,20 @@ a:hover {
   background-color: #1C231F !important;
   border-color: #F2C75C !important;
   color: #FFFFFF !important;
+}
+
+/* Secondary Neutral / Light Button in Dark Theme */
+.btn-light {
+  background-color: #151A17 !important;
+  color: #FFFFFF !important;
+  border: 1px solid rgba(217, 168, 62, 0.35) !important;
+}
+
+.btn-light:hover, .btn-light:focus {
+  background-color: #1C231F !important;
+  border-color: #F2C75C !important;
+  color: #F2C75C !important;
+  box-shadow: 0 4px 12px rgba(217, 168, 62, 0.2) !important;
 }
 
 /* Success / Danger / Warning Buttons */

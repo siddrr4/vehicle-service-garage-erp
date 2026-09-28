@@ -315,12 +315,21 @@ const ReportsDashboard = () => {
   const CustomChartTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-white p-3 border shadow rounded small" style={{ minWidth: '160px', zIndex: 1000 }}>
-          <p className="fw-bold mb-2 text-dark border-bottom pb-1">{label}</p>
+        <div 
+          className="p-3 shadow-lg rounded small" 
+          style={{ 
+            minWidth: '175px', 
+            zIndex: 1000, 
+            backgroundColor: '#151A17', 
+            border: '1px solid rgba(217, 168, 62, 0.35)', 
+            color: '#FFFFFF' 
+          }}
+        >
+          <p className="fw-bold mb-2 text-white border-bottom pb-1" style={{ borderColor: 'rgba(217, 168, 62, 0.2)' }}>{label}</p>
           {payload.map((entry, index) => (
-            <div key={`item-${index}`} className="d-flex justify-content-between gap-3 mb-1" style={{ color: entry.color }}>
-              <span>{entry.name}:</span>
-              <span className="fw-bold">
+            <div key={`item-${index}`} className="d-flex justify-content-between gap-3 mb-1">
+              <span style={{ color: entry.color || '#A7B0AA' }}>{entry.name}:</span>
+              <span className="fw-bold text-white">
                 {entry.name.toLowerCase().includes('billed') || 
                  entry.name.toLowerCase().includes('collected') || 
                  entry.name.toLowerCase().includes('pending') || 
@@ -561,7 +570,7 @@ const ReportsDashboard = () => {
           <div className="panel h-100 d-flex flex-column">
             <div className="panel-header">
               <div className="d-flex align-items-center gap-2">
-                <FaFileInvoiceDollar className="text-navy" />
+                <FaFileInvoiceDollar style={{ color: '#D9A83E' }} />
                 <span>Revenue Analytics: Billed vs Collected vs Pending</span>
               </div>
               <div className="small text-muted fw-normal">Actual Invoice & Payment Data</div>
@@ -572,7 +581,7 @@ const ReportsDashboard = () => {
               <div className="panel-kpi-row">
                 <div className="panel-kpi-box">
                   <div className="lbl">Total Billed</div>
-                  <div className="val text-navy">{formatCurrency(revSummary.totalBilled)}</div>
+                  <div className="val text-white">{formatCurrency(revSummary.totalBilled)}</div>
                 </div>
                 <div className="panel-kpi-box">
                   <div className="lbl">Amount Collected</div>
@@ -584,7 +593,7 @@ const ReportsDashboard = () => {
                 </div>
                 <div className="panel-kpi-box">
                   <div className="lbl">Collection Rate</div>
-                  <div className="val text-primary">{revSummary.collectionRate || 0}%</div>
+                  <div className="val" style={{ color: '#D9A83E' }}>{revSummary.collectionRate || 0}%</div>
                 </div>
               </div>
 
@@ -597,19 +606,27 @@ const ReportsDashboard = () => {
                 ) : revenue.data?.chartData?.length > 0 ? (
                   <ResponsiveContainer width="100%" height={320}>
                     <BarChart data={revenue.data.chartData} margin={{ top: 15, right: 15, left: 10, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                      <XAxis dataKey="date" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255, 255, 255, 0.08)" />
+                      <XAxis 
+                        dataKey="date" 
+                        tick={{ fontSize: 11, fill: '#8E9891' }} 
+                        axisLine={{ stroke: 'rgba(217, 168, 62, 0.2)' }} 
+                        tickLine={false} 
+                      />
                       <YAxis 
-                        tick={{ fontSize: 11 }} 
+                        tick={{ fontSize: 11, fill: '#8E9891' }} 
                         axisLine={false} 
                         tickLine={false} 
                         tickFormatter={(val) => `₹${val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val}`} 
                       />
-                      <RechartsTooltip content={<CustomChartTooltip />} />
-                      <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                      <Bar dataKey="totalBilled" name="Total Billed" fill="#1A237E" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                      <Bar dataKey="amountCollected" name="Amount Collected" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                      <Bar dataKey="pendingAmount" name="Pending Balance" fill="#ef4444" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                      <RechartsTooltip 
+                        content={<CustomChartTooltip />} 
+                        cursor={{ fill: 'rgba(217, 168, 62, 0.08)' }} 
+                      />
+                      <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px', color: '#A7B0AA' }} />
+                      <Bar dataKey="totalBilled" name="Total Billed" fill="#3B82F6" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                      <Bar dataKey="amountCollected" name="Amount Collected" fill="#10B981" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                      <Bar dataKey="pendingAmount" name="Pending Balance" fill="#EF4444" radius={[4, 4, 0, 0]} maxBarSize={40} />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
@@ -694,8 +711,8 @@ const ReportsDashboard = () => {
                     <div className="d-flex gap-2 flex-wrap">
                       {payments.data?.paymentMethods?.length > 0 ? (
                         payments.data.paymentMethods.map((m, idx) => (
-                          <span key={idx} className="badge bg-light text-dark border px-2 py-1 small">
-                            {m.method}: <strong>{formatCurrency(m.amount)}</strong> ({m.count})
+                          <span key={idx} className="badge bg-dark text-light border px-2 py-1 small" style={{ borderColor: 'rgba(217, 168, 62, 0.25)' }}>
+                            {m.method}: <strong style={{ color: '#D9A83E' }}>{formatCurrency(m.amount)}</strong> ({m.count})
                           </span>
                         ))
                       ) : (
@@ -771,11 +788,11 @@ const ReportsDashboard = () => {
               ) : services.data?.typeChart?.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={services.data.typeChart} layout="vertical" margin={{ top: 5, right: 20, left: 30, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
-                    <XAxis type="number" tick={{ fontSize: 11 }} />
-                    <YAxis dataKey="_id" type="category" tick={{ fontSize: 11 }} width={90} />
-                    <RechartsTooltip content={<CustomChartTooltip />} />
-                    <Bar dataKey="count" name="Jobs" fill="var(--orange-accent)" radius={[0, 4, 4, 0]} barSize={20} />
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(255, 255, 255, 0.08)" />
+                    <XAxis type="number" tick={{ fontSize: 11, fill: '#8E9891' }} axisLine={{ stroke: 'rgba(217, 168, 62, 0.2)' }} />
+                    <YAxis dataKey="_id" type="category" tick={{ fontSize: 11, fill: '#8E9891' }} width={90} axisLine={false} />
+                    <RechartsTooltip content={<CustomChartTooltip />} cursor={{ fill: 'rgba(217, 168, 62, 0.08)' }} />
+                    <Bar dataKey="count" name="Jobs" fill="#D9A83E" radius={[0, 4, 4, 0]} barSize={20} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -1078,7 +1095,7 @@ const ReportsDashboard = () => {
 
       {/* 10. DETAILED REPORTS & TABBED VIEWS (Requirement 12) */}
       <div className="panel mb-0">
-        <div className="panel-header d-flex align-items-center bg-white border-bottom-0 pb-0 flex-wrap gap-2">
+        <div className="panel-header d-flex align-items-center border-bottom-0 pb-0 flex-wrap gap-2">
           <span className="fs-5">Detailed Reports</span>
           <div className="d-flex align-items-center bg-light border rounded px-2 ms-auto" style={{ maxWidth: '280px' }}>
             <FaSearch className="text-muted small me-2" />

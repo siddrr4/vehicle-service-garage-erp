@@ -11,6 +11,11 @@ const settingsSchema = new mongoose.Schema({
   email: { type: String, default: 'support@garageerp.com' },
   gstin: { type: String, default: '27AAAAA1111A1Z1' },
 
+  // Garage Geo Location & Roadside Assistance
+  garageLatitude: { type: Number, default: 13.34088 },
+  garageLongitude: { type: Number, default: 74.74214 },
+  serviceRadiusKm: { type: Number, default: 20 },
+
   // Invoice Settings
   invoicePrefix: { type: String, default: 'INV' },
   invoiceNumbering: { type: Number, default: 1 },

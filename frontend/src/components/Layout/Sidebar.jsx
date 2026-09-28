@@ -4,7 +4,7 @@ import {
   FaHome, FaUsers, FaCar, FaCalendarAlt, FaWrench, 
   FaUserTie, FaBoxOpen, FaFileInvoiceDollar, FaChartBar, 
   FaCog, FaSignOutAlt, FaTimes, FaPlus, FaUserClock, FaCheckCircle, FaUserCircle,
-  FaClipboardList, FaMoneyBillWave, FaReceipt, FaWalking, FaBell, FaHistory
+  FaClipboardList, FaMoneyBillWave, FaReceipt, FaWalking, FaBell, FaHistory, FaAmbulance
 } from 'react-icons/fa';
 import { AuthContext } from '../../context/AuthContext';
 
@@ -26,6 +26,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       category: 'WORKSHOP',
       items: [
         { name: 'Appointments', path: '/appointments', icon: <FaCalendarAlt /> },
+        { name: 'Roadside Assistance', path: '/admin/roadside-assistance', icon: <FaAmbulance /> },
         { name: 'Walk-in Service', path: '/walk-in', icon: <FaWalking /> },
         { name: 'Waiting Queue', path: '/waiting-queue', icon: <FaUserClock /> },
         { name: 'Job Cards', path: '/job-cards', icon: <FaWrench /> }
@@ -119,6 +120,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       items: [
         { name: 'My Vehicles', path: '/my-vehicles', icon: <FaCar /> },
         { name: 'Request Service', path: '/request-service', icon: <FaPlus /> },
+        { name: 'Roadside Assistance', path: '/roadside-assistance', icon: <FaAmbulance /> },
         { name: 'My Requests', path: '/my-requests', icon: <FaCalendarAlt /> },
         { name: 'My Job Cards', path: '/my-job-cards', icon: <FaWrench /> },
         { name: 'Service History', path: '/service-history', icon: <FaHistory /> }

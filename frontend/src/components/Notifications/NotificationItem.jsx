@@ -44,7 +44,7 @@ const getRelativeTimeIST = (dateStr) => {
 /**
  * Visual badge & icon selector based on notification type
  */
-const getNotificationTypeConfig = (type) => {
+const getNotificationTypeConfig = (type, metadata = {}) => {
   switch (type) {
     case 'APPOINTMENT_BOOKED':
       return { icon: <FaCalendarAlt />, bg: 'bg-primary bg-opacity-10 text-primary', label: 'Appointment' };
@@ -68,9 +68,12 @@ const getNotificationTypeConfig = (type) => {
     case 'SERVICE_DUE':
       return { icon: <FaCar />, bg: 'bg-primary bg-opacity-10 text-primary', label: 'Service Due' };
     case 'INSURANCE_EXPIRY':
-      return { icon: <FaShieldAlt />, bg: 'bg-danger bg-opacity-10 text-danger', label: 'Insurance' };
+      if (metadata?.isRenewed) {
+        return { icon: <FaShieldAlt />, bg: 'bg-success bg-opacity-10 text-success', label: 'Insurance Active / Renewed' };
+      }
+      return { icon: <FaShieldAlt />, bg: 'bg-danger bg-opacity-10 text-danger', label: 'Insurance Expiry' };
     case 'INSURANCE_RENEWED':
-      return { icon: <FaShieldAlt />, bg: 'bg-success bg-opacity-10 text-success', label: 'Renewed' };
+      return { icon: <FaShieldAlt />, bg: 'bg-success bg-opacity-10 text-success', label: 'Insurance Active / Renewed' };
     case 'LOW_STOCK':
       return { icon: <FaBoxes />, bg: 'bg-warning bg-opacity-10 text-dark', label: 'Low Stock' };
     case 'PAYROLL_GENERATED':
@@ -89,7 +92,7 @@ const NotificationItem = ({
 }) => {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
-  const config = getNotificationTypeConfig(notification.type);
+  const config = getNotificationTypeConfig(notification.type, notification.metadata);
 
   const handleClick = (e) => {
     // If clicking action buttons, do not trigger navigation
@@ -248,18 +251,49 @@ const NotificationItem = ({
           )}
 
           {notification.type === 'INSURANCE_EXPIRY' && notification.metadata?.isRenewed && (
-            <div className="mt-2 mb-1">
+            <div className="mt-2 mb-1 d-flex gap-2 align-items-center flex-wrap">
               <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2.5 py-1 fw-medium small d-inline-flex align-items-center gap-1">
-                <FaCheckCircle size={11} /> Insurance Renewed
+                <FaCheckCircle size={11} /> Insurance Active / Renewed
               </span>
+              {notification.metadata?.renewalId && (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1 px-2.5 py-0.5 fw-medium rounded"
+                  style={{ fontSize: '0.75rem' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onCloseDropdown) onCloseDropdown();
+                    navigate(`/insurance-receipt/${notification.metadata.renewalId}`);
+                  }}
+                >
+                  <FaFileInvoiceDollar size={11} /> View Receipt
+                </button>
+              )}
             </div>
           )}
 
           {notification.type === 'INSURANCE_RENEWED' && (
-            <div className="mt-2 mb-1">
+            <div className="mt-2 mb-1 d-flex gap-2 align-items-center flex-wrap">
+              <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2.5 py-1 fw-medium small d-inline-flex align-items-center gap-1">
+                <FaCheckCircle size={11} /> Policy Active
+              </span>
+              {notification.metadata?.renewalId && (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1 px-2.5 py-0.5 fw-medium rounded"
+                  style={{ fontSize: '0.75rem' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onCloseDropdown) onCloseDropdown();
+                    navigate(`/insurance-receipt/${notification.metadata.renewalId}`);
+                  }}
+                >
+                  <FaFileInvoiceDollar size={11} /> View Receipt
+                </button>
+              )}
               <button
                 type="button"
-                className="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1 px-2.5 py-0.5 fw-medium rounded"
+                className="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 px-2.5 py-0.5 fw-medium rounded"
                 style={{ fontSize: '0.75rem' }}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -272,7 +306,7 @@ const NotificationItem = ({
                   }
                 }}
               >
-                <FaCheckCircle size={11} /> View Vehicle
+                <FaCar size={11} /> View Vehicle
               </button>
             </div>
           )}

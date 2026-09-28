@@ -43,6 +43,10 @@ export const updateSettings = async (req, res) => {
     settings.email = req.body.email !== undefined ? req.body.email : settings.email;
     settings.gstin = req.body.gstin !== undefined ? req.body.gstin : settings.gstin;
 
+    settings.garageLatitude = req.body.garageLatitude !== undefined ? Number(req.body.garageLatitude) : (parseFloat(process.env.GARAGE_LATITUDE) || settings.garageLatitude || 13.34088);
+    settings.garageLongitude = req.body.garageLongitude !== undefined ? Number(req.body.garageLongitude) : (parseFloat(process.env.GARAGE_LONGITUDE) || settings.garageLongitude || 74.74214);
+    settings.serviceRadiusKm = req.body.serviceRadiusKm !== undefined ? Number(req.body.serviceRadiusKm) : (parseFloat(process.env.SERVICE_RADIUS_KM) || settings.serviceRadiusKm || 20);
+
     settings.invoicePrefix = req.body.invoicePrefix !== undefined ? req.body.invoicePrefix : settings.invoicePrefix;
     settings.invoiceNumbering = req.body.invoiceNumbering !== undefined ? req.body.invoiceNumbering : settings.invoiceNumbering;
     settings.defaultTaxGst = req.body.defaultTaxGst !== undefined ? Number(req.body.defaultTaxGst) : settings.defaultTaxGst;
@@ -91,6 +95,9 @@ export const getPublicSettings = async (req, res) => {
       phone: settings.phone,
       email: settings.email,
       gstin: settings.gstin,
+      garageLatitude: parseFloat(process.env.GARAGE_LATITUDE) || settings.garageLatitude || 13.34088,
+      garageLongitude: parseFloat(process.env.GARAGE_LONGITUDE) || settings.garageLongitude || 74.74214,
+      serviceRadiusKm: parseFloat(process.env.SERVICE_RADIUS_KM) || settings.serviceRadiusKm || 20,
       showGstin: settings.showGstin,
       showGarageContact: settings.showGarageContact,
       defaultLabourCharge: settings.defaultLabourCharge,

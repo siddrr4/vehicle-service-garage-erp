@@ -3,11 +3,12 @@ import Vehicle from '../models/Vehicle.js';
 import Customer from '../models/Customer.js';
 import InsuranceRenewal from '../models/InsuranceRenewal.js';
 import Notification from '../models/Notification.js';
+import Settings from '../models/Settings.js';
 import {
   notifyCustomer,
   notifyAdminsAndAdvisors,
 } from '../services/notificationService.js';
-import { getIndiaStartOfDay, getIndiaDateStr } from '../utils/dateUtils.js';
+import { getIndiaStartOfDay, getIndiaDateStr, formatDateTimeIST } from '../utils/dateUtils.js';
 
 /**
  * Check if the authenticated user is authorized for a vehicle's customer
@@ -201,6 +202,10 @@ export const createRenewalOrder = async (req, res) => {
 
     const order = await razorpay.orders.create(orderOptions);
 
+    const gstRate = 18;
+    const basePremium = Math.round((numAmount / (1 + gstRate / 100)) * 100) / 100;
+    const gstAmount = Math.round((numAmount - basePremium) * 100) / 100;
+
     // Create pending InsuranceRenewal transaction
     const renewal = await InsuranceRenewal.create({
       vehicle: vehicle._id,
@@ -217,6 +222,10 @@ export const createRenewalOrder = async (req, res) => {
         expiryDate: eDate,
       },
       amount: numAmount,
+      paidAmount: 0,
+      premiumAmount: basePremium,
+      gstAmount: gstAmount,
+      gstRate: gstRate,
       paymentStatus: 'Pending',
       razorpayOrderId: order.id,
       processedBy: req.user._id,
@@ -229,6 +238,9 @@ export const createRenewalOrder = async (req, res) => {
       orderId: order.id,
       amount: order.amount,
       currency: order.currency,
+      premiumAmount: basePremium,
+      gstAmount: gstAmount,
+      gstRate: gstRate,
       razorpayKeyId: process.env.RAZORPAY_KEY_ID,
       vehicleNumber: vehicle.vehicleNumber,
     });
@@ -267,7 +279,7 @@ export const verifyRenewalPayment = async (req, res) => {
     }
 
     // 8. Prevent duplicate payment completion
-    if (renewal.paymentStatus === 'Completed') {
+    if (['Completed', 'Paid', 'PAID'].includes(renewal.paymentStatus)) {
       return res.status(400).json({
         success: false,
         message: 'Insurance renewal has already been completed.',
@@ -347,15 +359,27 @@ export const verifyRenewalPayment = async (req, res) => {
       else mappedMethod = 'Razorpay';
     }
 
-    // 1. Update Renewal record
-    renewal.paymentStatus = 'Completed';
+    const now = new Date();
+    const istDateTimeStr = formatDateTimeIST(now);
+    const totalAmount = Number(renewal.amount);
+    const gstRate = renewal.gstRate || 18;
+    const basePremium = renewal.premiumAmount || Math.round((totalAmount / (1 + gstRate / 100)) * 100) / 100;
+    const gstAmount = renewal.gstAmount || Math.round((totalAmount - basePremium) * 100) / 100;
+
+    // 1. Mark transaction as PAID, store Razorpay ID, paid amount and payment date/time in IST
+    renewal.paymentStatus = 'PAID';
+    renewal.paidAmount = totalAmount;
+    renewal.premiumAmount = basePremium;
+    renewal.gstAmount = gstAmount;
+    renewal.gstRate = gstRate;
     renewal.razorpayPaymentId = razorpay_payment_id;
     renewal.paymentMethod = mappedMethod;
-    renewal.paymentDate = new Date();
+    renewal.paymentDate = now;
+    renewal.paymentDateIST = istDateTimeStr;
     renewal.processedBy = req.user._id;
     await renewal.save();
 
-    // 2. Update Vehicle insurance details
+    // 2. Update existing Vehicle insurance details
     const vehicle = await Vehicle.findById(renewal.vehicle._id);
     vehicle.insuranceProvider = renewal.newInsurance.provider;
     vehicle.insuranceNumber = renewal.newInsurance.policyNumber;
@@ -363,7 +387,7 @@ export const verifyRenewalPayment = async (req, res) => {
     vehicle.insuranceExpiryDate = renewal.newInsurance.expiryDate;
     await vehicle.save();
 
-    // 3. Mark existing INSURANCE_EXPIRY notifications for this vehicle as renewed and read
+    // 3. Mark existing INSURANCE_EXPIRY notifications for this vehicle as renewed and replace warning with Active/Renewed status
     await Notification.updateMany(
       {
         relatedEntityType: 'Vehicle',
@@ -373,6 +397,13 @@ export const verifyRenewalPayment = async (req, res) => {
       {
         $set: {
           'metadata.isRenewed': true,
+          'metadata.status': 'Active',
+          'metadata.policyNumber': renewal.newInsurance.policyNumber,
+          'metadata.provider': renewal.newInsurance.provider,
+          'metadata.expiryDate': getIndiaDateStr(renewal.newInsurance.expiryDate),
+          'metadata.renewalId': renewal._id,
+          title: `Insurance Active / Renewed (${vehicle.vehicleNumber})`,
+          message: `Insurance is ACTIVE. Policy ${renewal.newInsurance.policyNumber} renewed with ${renewal.newInsurance.provider} until ${getIndiaDateStr(renewal.newInsurance.expiryDate)}.`,
           isRead: true,
         },
       }
@@ -385,16 +416,21 @@ export const verifyRenewalPayment = async (req, res) => {
       provider: renewal.newInsurance.provider,
       expiryDate: getIndiaDateStr(renewal.newInsurance.expiryDate),
       amount: renewal.amount,
+      paidAmount: totalAmount,
+      premiumAmount: basePremium,
+      gstAmount: gstAmount,
       renewalNumber: renewal.renewalNumber,
+      renewalId: renewal._id,
       razorpayPaymentId: razorpay_payment_id,
+      paymentDateIST: istDateTimeStr,
     };
 
     // Notify Customer
     if (vehicle.customer) {
       await notifyCustomer(vehicle.customer, {
         type: 'INSURANCE_RENEWED',
-        title: 'Insurance Renewed',
-        message: `Insurance for vehicle ${vehicle.vehicleNumber} has been successfully renewed.`,
+        title: 'Insurance Renewed - Active',
+        message: `Insurance for vehicle ${vehicle.vehicleNumber} has been successfully renewed. Policy: ${renewal.newInsurance.policyNumber}.`,
         relatedEntityType: 'Vehicle',
         relatedEntityId: vehicle._id,
         metadata: successMeta,
@@ -404,12 +440,15 @@ export const verifyRenewalPayment = async (req, res) => {
     // Notify Workshop Admins & Advisors
     await notifyAdminsAndAdvisors({
       type: 'INSURANCE_RENEWED',
-      title: `[Insurance] ${vehicle.vehicleNumber} Renewed`,
-      message: `Insurance for vehicle ${vehicle.vehicleNumber} has been renewed by ${renewal.customer.fullName} (Policy: ${renewal.newInsurance.policyNumber}, ₹${renewal.amount}).`,
+      title: `[Insurance] ${vehicle.vehicleNumber} Renewed & Paid`,
+      message: `Insurance for vehicle ${vehicle.vehicleNumber} has been renewed by ${renewal.customer.fullName} (Policy: ${renewal.newInsurance.policyNumber}, ₹${totalAmount}).`,
       relatedEntityType: 'Vehicle',
       relatedEntityId: vehicle._id,
       metadata: successMeta,
     });
+
+    let settings = await Settings.findOne();
+    if (!settings) settings = {};
 
     res.json({
       success: true,
@@ -417,19 +456,52 @@ export const verifyRenewalPayment = async (req, res) => {
       renewal: {
         _id: renewal._id,
         renewalNumber: renewal.renewalNumber,
-        amount: renewal.amount,
+        amount: totalAmount,
+        paidAmount: totalAmount,
+        premiumAmount: basePremium,
+        gstAmount: gstAmount,
+        gstRate: gstRate,
         paymentStatus: renewal.paymentStatus,
         paymentDate: renewal.paymentDate,
+        paymentDateIST: renewal.paymentDateIST,
         razorpayPaymentId: renewal.razorpayPaymentId,
+        razorpayOrderId: renewal.razorpayOrderId,
+        paymentMethod: renewal.paymentMethod,
         newInsurance: renewal.newInsurance,
+        previousInsurance: renewal.previousInsurance,
       },
       vehicle: {
         _id: vehicle._id,
         vehicleNumber: vehicle.vehicleNumber,
+        brand: vehicle.brand,
+        model: vehicle.model,
+        fuelType: vehicle.fuelType,
+        transmission: vehicle.transmission,
         insuranceProvider: vehicle.insuranceProvider,
         insuranceNumber: vehicle.insuranceNumber,
         insuranceStartDate: vehicle.insuranceStartDate,
         insuranceExpiryDate: vehicle.insuranceExpiryDate,
+      },
+      customer: {
+        _id: renewal.customer._id,
+        fullName: renewal.customer.fullName,
+        mobileNumber: renewal.customer.mobileNumber,
+        emailAddress: renewal.customer.emailAddress,
+        address: renewal.customer.address,
+        city: renewal.customer.city,
+        state: renewal.customer.state,
+        pincode: renewal.customer.pincode,
+        gstin: renewal.customer.gstin,
+      },
+      garageSettings: {
+        garageName: settings.garageName || 'Garage ERP Auto Services',
+        address: settings.address || '',
+        city: settings.city || '',
+        state: settings.state || '',
+        pincode: settings.pincode || '',
+        phone: settings.phone || '',
+        email: settings.email || '',
+        gstin: settings.gstin || '',
       },
     });
   } catch (error) {
@@ -459,8 +531,8 @@ export const recordRenewalFailure = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Renewal record not found' });
     }
 
-    // If not already completed, mark as Failed
-    if (renewal.paymentStatus !== 'Completed') {
+    // If not already completed or paid, mark as Failed
+    if (!['Completed', 'Paid', 'PAID'].includes(renewal.paymentStatus)) {
       renewal.paymentStatus = 'Failed';
       renewal.failureReason = reason || 'Payment cancelled or dismissed by user';
       await renewal.save();
@@ -472,6 +544,76 @@ export const recordRenewalFailure = async (req, res) => {
     });
   } catch (error) {
     console.error('Error recording renewal failure:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * @desc    Get complete insurance renewal receipt by Renewal ID
+ * @route   GET /api/insurance-renewals/receipt/:id
+ * @access  Private
+ */
+export const getRenewalReceiptById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const renewal = await InsuranceRenewal.findById(id)
+      .populate('vehicle')
+      .populate('customer');
+
+    if (!renewal) {
+      return res.status(404).json({ success: false, message: 'Insurance renewal receipt not found' });
+    }
+
+    if (!isAuthorizedForVehicle(req.user, renewal.customer)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to view this insurance renewal receipt',
+      });
+    }
+
+    let settings = await Settings.findOne();
+    if (!settings) settings = {};
+
+    const totalAmount = Number(renewal.paidAmount || renewal.amount || 0);
+    const gstRate = renewal.gstRate || 18;
+    const premiumAmount = renewal.premiumAmount || Math.round((totalAmount / (1 + gstRate / 100)) * 100) / 100;
+    const gstAmount = renewal.gstAmount || Math.round((totalAmount - premiumAmount) * 100) / 100;
+
+    res.json({
+      success: true,
+      renewal: {
+        _id: renewal._id,
+        renewalNumber: renewal.renewalNumber,
+        amount: totalAmount,
+        paidAmount: totalAmount,
+        premiumAmount,
+        gstAmount,
+        gstRate,
+        paymentStatus: renewal.paymentStatus,
+        paymentDate: renewal.paymentDate,
+        paymentDateIST: renewal.paymentDateIST || (renewal.paymentDate ? formatDateTimeIST(renewal.paymentDate) : ''),
+        razorpayPaymentId: renewal.razorpayPaymentId,
+        razorpayOrderId: renewal.razorpayOrderId,
+        paymentMethod: renewal.paymentMethod,
+        newInsurance: renewal.newInsurance,
+        previousInsurance: renewal.previousInsurance,
+        createdAt: renewal.createdAt,
+      },
+      vehicle: renewal.vehicle,
+      customer: renewal.customer,
+      garageSettings: {
+        garageName: settings.garageName || 'Garage ERP Auto Services',
+        address: settings.address || '',
+        city: settings.city || '',
+        state: settings.state || '',
+        pincode: settings.pincode || '',
+        phone: settings.phone || '',
+        email: settings.email || '',
+        gstin: settings.gstin || '',
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching insurance renewal receipt:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };

@@ -22,6 +22,7 @@ import insuranceService from '../../services/insuranceService';
 import PageHeader from '../../components/UI/PageHeader';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
 import { formatDateIST, getIndiaDateStr } from '../../utils/dateUtils';
+import InsuranceReceipt from './InsuranceReceipt';
 
 const COMMON_PROVIDERS = [
   'HDFC ERGO General Insurance',
@@ -58,13 +59,21 @@ const InsuranceRenewal = () => {
   const [processingPayment, setProcessingPayment] = useState(false);
   const [paymentError, setPaymentError] = useState(null);
   const [completedTransaction, setCompletedTransaction] = useState(null);
+  const [history, setHistory] = useState([]);
 
   // Load Vehicle & Insurance Details
   const fetchInsuranceDetails = async () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await insuranceService.getVehicleInsurance(vehicleId);
+      const [res, histRes] = await Promise.all([
+        insuranceService.getVehicleInsurance(vehicleId),
+        insuranceService.getVehicleRenewalHistory(vehicleId).catch(() => null),
+      ]);
+
+      if (histRes && histRes.success) {
+        setHistory(histRes.renewals || []);
+      }
 
       if (res && res.success) {
         setData(res);
@@ -250,17 +259,7 @@ const InsuranceRenewal = () => {
 
             if (verifyRes && verifyRes.success) {
               toast.success('Insurance renewed and payment completed successfully!');
-              setCompletedTransaction({
-                renewal: verifyRes.renewal,
-                vehicle: verifyRes.vehicle,
-                paymentId: response.razorpay_payment_id,
-                amount: finalAmount,
-                provider: selectedProvider,
-                policyNumber: policyNumber.trim(),
-                startDate,
-                expiryDate,
-                date: new Date().toLocaleString(),
-              });
+              setCompletedTransaction(verifyRes);
             } else {
               throw new Error(verifyRes?.message || 'Payment verification failed on server');
             }
@@ -340,97 +339,13 @@ const InsuranceRenewal = () => {
 
   const { vehicle, customer, currentStatus, daysRemaining } = data;
 
-  // Render Confirmation Receipt View if successfully completed
+  // Render Professional Confirmation Receipt View if successfully completed
   if (completedTransaction) {
     return (
-      <div className="container py-5 d-flex justify-content-center">
-        <Card className="border-0 shadow-sm p-4 p-md-5 bg-white text-center" style={{ maxWidth: '640px', width: '100%' }}>
-          <div className="rounded-circle bg-success bg-opacity-10 text-success d-inline-flex align-items-center justify-content-center mx-auto mb-3" style={{ width: 84, height: 84 }}>
-            <FaCheckCircle size={48} />
-          </div>
-
-          <h2 className="fw-bold text-navy mb-1">Insurance Renewed Successfully</h2>
-          <p className="text-muted small mb-4">
-            Payment verified and vehicle insurance policy updated in garage records.
-          </p>
-
-          {/* Receipt Breakdown Card */}
-          <div className="bg-light p-4 rounded-3 text-start mb-4 border text-dark">
-            <div className="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
-              <span className="text-secondary small fw-semibold text-uppercase">Receipt Reference</span>
-              <span className="badge bg-navy px-3 py-1 font-monospace">
-                {completedTransaction.renewal?.renewalNumber || 'INS-COMPLETED'}
-              </span>
-            </div>
-
-            <div className="row g-2 mb-3">
-              <div className="col-sm-6">
-                <small className="text-muted d-block">Vehicle</small>
-                <strong className="text-navy">{vehicle.vehicleNumber}</strong>
-                <div className="small text-muted">{vehicle.brand} {vehicle.model}</div>
-              </div>
-              <div className="col-sm-6">
-                <small className="text-muted d-block">Customer</small>
-                <strong className="text-dark">{customer?.fullName}</strong>
-                <div className="small text-muted">{customer?.mobileNumber}</div>
-              </div>
-            </div>
-
-            <div className="border-top pt-2 mb-2">
-              <div className="d-flex justify-content-between mb-1">
-                <span className="text-secondary small">Insurance Provider</span>
-                <strong className="text-dark small">{completedTransaction.provider}</strong>
-              </div>
-              <div className="d-flex justify-content-between mb-1">
-                <span className="text-secondary small">New Policy Number</span>
-                <span className="font-monospace fw-bold text-dark small">{completedTransaction.policyNumber}</span>
-              </div>
-              <div className="d-flex justify-content-between mb-1">
-                <span className="text-secondary small">Coverage Period</span>
-                <span className="small text-dark">
-                  {formatDateIST(completedTransaction.startDate)} to {formatDateIST(completedTransaction.expiryDate)}
-                </span>
-              </div>
-              <div className="d-flex justify-content-between mb-1">
-                <span className="text-secondary small">Razorpay Payment ID</span>
-                <span className="font-monospace text-muted small">{completedTransaction.paymentId}</span>
-              </div>
-              <div className="d-flex justify-content-between mb-1">
-                <span className="text-secondary small">Transaction Timestamp</span>
-                <span className="text-muted small">{completedTransaction.date}</span>
-              </div>
-            </div>
-
-            <div className="border-top pt-2 d-flex justify-content-between align-items-center">
-              <span className="fw-bold text-navy">Amount Paid (INR)</span>
-              <span className="fs-5 fw-bold text-success">₹{completedTransaction.amount.toFixed(2)}</span>
-            </div>
-          </div>
-
-          <div className="d-grid gap-2">
-            <Button
-              variant="orange"
-              className="py-2.5 fw-semibold d-flex align-items-center justify-content-center gap-2 shadow-sm text-white border-0"
-              onClick={() => navigate(`/vehicles/${vehicle._id}`)}
-            >
-              <FaCar /> View Vehicle Profile
-            </Button>
-            <Button
-              variant="light"
-              className="border py-2.5 fw-semibold d-flex align-items-center justify-content-center gap-2"
-              onClick={() => window.print()}
-            >
-              <FaPrint /> Print Renewal Certificate
-            </Button>
-            <Link
-              to="/notifications"
-              className="btn btn-link text-secondary mt-2 small d-flex align-items-center justify-content-center gap-1 text-decoration-none"
-            >
-              <FaArrowLeft size={12} /> Back to Notifications
-            </Link>
-          </div>
-        </Card>
-      </div>
+      <InsuranceReceipt
+        receiptData={completedTransaction}
+        onBack={() => navigate(vehicle?._id ? `/vehicles/${vehicle._id}` : '/vehicles')}
+      />
     );
   }
 
@@ -560,6 +475,46 @@ const InsuranceRenewal = () => {
               )}
             </Card.Body>
           </Card>
+
+          {/* Card 4: Past Renewal Receipts (if any) */}
+          {history.length > 0 && (
+            <Card className="border-0 shadow-sm rounded-3 mb-4 bg-card">
+              <Card.Header className="bg-transparent border-bottom pt-3 pb-3 px-4 d-flex justify-content-between align-items-center">
+                <div className="d-flex align-items-center gap-2">
+                  <FaFileInvoiceDollar className="text-success" size={16} />
+                  <h6 className="fw-bold mb-0 text-navy">Renewal History & Receipts</h6>
+                </div>
+                <Badge bg="secondary" pill>{history.length}</Badge>
+              </Card.Header>
+              <Card.Body className="p-3">
+                <div className="list-group list-group-flush">
+                  {history.map((item) => (
+                    <div key={item._id} className="list-group-item px-2 py-2.5 bg-transparent border-bottom d-flex justify-content-between align-items-center">
+                      <div>
+                        <div className="fw-bold font-monospace small text-navy">{item.renewalNumber}</div>
+                        <div className="text-muted" style={{ fontSize: '0.75rem' }}>
+                          {item.newInsurance?.provider} &bull; Valid till: {formatDateIST(item.newInsurance?.expiryDate)}
+                        </div>
+                        <div className="text-success fw-bold small">
+                          ₹{(item.paidAmount || item.amount || 0).toLocaleString('en-IN')} &bull;{' '}
+                          <span className={`badge ${['PAID', 'Paid', 'Completed'].includes(item.paymentStatus) ? 'bg-success' : 'bg-secondary'}`}>
+                            {item.paymentStatus === 'PAID' ? 'PAID / ACTIVE' : item.paymentStatus}
+                          </span>
+                        </div>
+                      </div>
+                      <Link
+                        to={`/insurance-receipt/${item._id}`}
+                        className="btn btn-sm btn-outline-primary d-flex align-items-center gap-1 shadow-sm py-1 px-2.5"
+                        style={{ fontSize: '0.75rem' }}
+                      >
+                        <FaPrint size={10} /> View Receipt
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              </Card.Body>
+            </Card>
+          )}
         </Col>
 
         {/* ── RIGHT COLUMN: Renewal Form & Payment Section ── */}
