@@ -259,6 +259,42 @@ const InsuranceRenewal = () => {
 
             if (verifyRes && verifyRes.success) {
               toast.success('Insurance renewed and payment completed successfully!');
+
+              // Automatically update local vehicle state and policy status
+              if (verifyRes.vehicle && verifyRes.renewal?.newInsurance) {
+                const renewedVehicle = verifyRes.vehicle;
+                const newIns = verifyRes.renewal.newInsurance;
+
+                let updatedDays = null;
+                let updatedStatus = 'Active';
+                if (newIns.expiryDate) {
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const expiry = new Date(newIns.expiryDate);
+                  expiry.setHours(0, 0, 0, 0);
+                  updatedDays = Math.round((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                  if (updatedDays < 0) updatedStatus = 'Expired';
+                  else if (updatedDays <= 30) updatedStatus = 'Expiring Soon';
+                  else updatedStatus = 'Active';
+                }
+
+                setData((prev) => ({
+                  ...prev,
+                  vehicle: {
+                    ...prev.vehicle,
+                    insuranceProvider: renewedVehicle.insuranceProvider || newIns.provider,
+                    insuranceNumber: renewedVehicle.insuranceNumber || newIns.policyNumber,
+                    insuranceStartDate: renewedVehicle.insuranceStartDate || newIns.startDate,
+                    insuranceExpiryDate: renewedVehicle.insuranceExpiryDate || newIns.expiryDate,
+                  },
+                  currentStatus: updatedStatus,
+                  daysRemaining: updatedDays,
+                }));
+              }
+
+              // Also fetch fresh details from server
+              fetchInsuranceDetails();
+
               setCompletedTransaction(verifyRes);
             } else {
               throw new Error(verifyRes?.message || 'Payment verification failed on server');
@@ -344,7 +380,10 @@ const InsuranceRenewal = () => {
     return (
       <InsuranceReceipt
         receiptData={completedTransaction}
-        onBack={() => navigate(vehicle?._id ? `/vehicles/${vehicle._id}` : '/vehicles')}
+        onBack={() => {
+          setCompletedTransaction(null);
+          fetchInsuranceDetails();
+        }}
       />
     );
   }
@@ -447,18 +486,18 @@ const InsuranceRenewal = () => {
               </span>
             </Card.Header>
             <Card.Body className="p-4">
-              <div className="mb-2 d-flex justify-content-between">
+              <div className="mb-2 d-flex justify-content-between align-items-center">
                 <span className="text-muted small">Current Provider:</span>
-                <span className="fw-semibold text-dark small">{vehicle.insuranceProvider || 'Not Specified'}</span>
+                <span className="fw-semibold text-dark small">{vehicle?.insuranceProvider?.trim() || 'Not Specified'}</span>
               </div>
-              <div className="mb-2 d-flex justify-content-between">
+              <div className="mb-2 d-flex justify-content-between align-items-center">
                 <span className="text-muted small">Current Policy Number:</span>
-                <span className="font-monospace fw-semibold text-dark small">{vehicle.insuranceNumber || 'N/A'}</span>
+                <span className="font-monospace fw-semibold text-dark small">{vehicle?.insuranceNumber?.trim() || 'N/A'}</span>
               </div>
-              <div className="mb-2 d-flex justify-content-between">
+              <div className="mb-2 d-flex justify-content-between align-items-center">
                 <span className="text-muted small">Current Expiry Date:</span>
                 <span className="fw-semibold text-dark small">
-                  {vehicle.insuranceExpiryDate ? formatDateIST(vehicle.insuranceExpiryDate) : 'Not Registered'}
+                  {vehicle?.insuranceExpiryDate ? formatDateIST(vehicle.insuranceExpiryDate) : 'N/A'}
                 </span>
               </div>
 

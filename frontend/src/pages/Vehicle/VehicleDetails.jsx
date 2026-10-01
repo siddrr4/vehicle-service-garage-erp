@@ -400,21 +400,19 @@ const VehicleDetails = () => {
                     <FaFileInvoice className="text-orange" /> Insurance Policy
                   </h5>
 
-                  {vehicle.insuranceNumber ? (
+                  {(vehicle.insuranceNumber || vehicle.insuranceProvider || vehicle.insuranceExpiryDate) ? (
                     <div>
-                      {vehicle.insuranceProvider && (
-                        <div className="d-flex justify-content-between align-items-center mb-2">
-                          <small className="text-muted">Insurer</small>
-                          <span className="fw-semibold text-dark small">{vehicle.insuranceProvider}</span>
-                        </div>
-                      )}
+                      <div className="d-flex justify-content-between align-items-center mb-2">
+                        <small className="text-muted">Insurer</small>
+                        <span className="fw-semibold text-dark small">{vehicle.insuranceProvider?.trim() || 'Not Specified'}</span>
+                      </div>
                       <div className="d-flex justify-content-between align-items-center mb-2">
                         <small className="text-muted">Policy Number</small>
-                        <span className="fw-semibold font-monospace">{vehicle.insuranceNumber}</span>
+                        <span className="fw-semibold font-monospace">{vehicle.insuranceNumber?.trim() || 'N/A'}</span>
                       </div>
                       <div className="d-flex justify-content-between align-items-center mb-2">
                         <small className="text-muted">Expiry Date</small>
-                        <span className="fw-semibold">{formatDate(vehicle.insuranceExpiryDate)}</span>
+                        <span className="fw-semibold">{vehicle.insuranceExpiryDate ? formatDate(vehicle.insuranceExpiryDate) : 'N/A'}</span>
                       </div>
                       <div className="d-flex justify-content-between align-items-center">
                         <small className="text-muted">Status</small>
