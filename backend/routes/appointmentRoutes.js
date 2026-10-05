@@ -13,25 +13,28 @@ import {
   getNextWalkInSlot,
   assignMechanicToAppointment,
 } from '../controllers/appointmentController.js';
-import { protect, adminOrAdvisor } from '../middleware/authMiddleware.js';
+import { protect, admin, blockAdvisorFromAppointments } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-router.get('/advisors', protect, getServiceAdvisors);
+// Workshop Bay Capacity checks (allowed for capacity calculation)
 router.get('/available-slots', getAvailableSlots);
 router.get('/next-available-slot', getNextAvailableSlot);
 router.get('/next-walkin-slot', getNextWalkInSlot);
-router.get('/today-schedule', protect, getTodaySchedule);
-router.put('/:id/recommendation', protect, addAdvisorRecommendation);
-router.put('/:id/assign-mechanic', protect, adminOrAdvisor, assignMechanicToAppointment);
+
+// Appointment endpoints - Service Advisor is strictly forbidden
+router.get('/advisors', protect, blockAdvisorFromAppointments, getServiceAdvisors);
+router.get('/today-schedule', protect, admin, getTodaySchedule);
+router.put('/:id/recommendation', protect, admin, addAdvisorRecommendation);
+router.put('/:id/assign-mechanic', protect, admin, assignMechanicToAppointment);
 
 router.route('/')
-  .get(protect, getAppointments)
-  .post(protect, createAppointment);
+  .get(protect, blockAdvisorFromAppointments, getAppointments)
+  .post(protect, blockAdvisorFromAppointments, createAppointment);
 
 router.route('/:id')
-  .get(protect, getAppointmentById)
-  .put(protect, updateAppointment)
-  .delete(protect, deleteAppointment);
+  .get(protect, blockAdvisorFromAppointments, getAppointmentById)
+  .put(protect, blockAdvisorFromAppointments, updateAppointment)
+  .delete(protect, admin, deleteAppointment);
 
 export default router;

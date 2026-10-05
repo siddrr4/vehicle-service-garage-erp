@@ -94,8 +94,7 @@ const WaitingQueue = () => {
         title="Live Workshop Waiting Queue"
         subtitle="Manage customer walk-ins, track queue priority and assign bay capacity"
         breadcrumbs={[
-          { label: 'Dashboard', path: '/admin-dashboard' },
-          { label: 'Workshop', path: '/appointments' },
+          { label: 'Dashboard', path: '/advisor-dashboard' },
           { label: 'Waiting Queue' }
         ]}
         actions={

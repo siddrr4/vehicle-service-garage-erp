@@ -62,4 +62,13 @@ const adminOrAdvisor = (req, res, next) => {
   }
 };
 
-export { protect, admin, restrictTo, adminOrAdvisor };
+const blockAdvisorFromAppointments = (req, res, next) => {
+  if (req.user && req.user.role === 'advisor') {
+    return res.status(403).json({
+      message: 'Access denied: Service Advisors handle walk-in services only and cannot access or manage appointments.'
+    });
+  }
+  next();
+};
+
+export { protect, admin, restrictTo, adminOrAdvisor, blockAdvisorFromAppointments };

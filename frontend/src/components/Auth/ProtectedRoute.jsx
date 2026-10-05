@@ -3,6 +3,8 @@ import { Navigate, Outlet } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
 import { Spinner } from 'react-bootstrap';
 
+import AccessDenied from '../../pages/AccessDenied';
+
 const ProtectedRoute = ({ allowedRoles }) => {
   const { user, loading } = useContext(AuthContext);
 
@@ -19,7 +21,7 @@ const ProtectedRoute = ({ allowedRoles }) => {
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/login" replace />; // Or a 'Not Authorized' page
+    return <AccessDenied />;
   }
 
   return <Outlet />;

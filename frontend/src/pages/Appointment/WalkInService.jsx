@@ -466,7 +466,7 @@ const WalkInService = () => {
         title="Walk-in Service Desk"
         subtitle="Identify arriving vehicles, record visual checkup, verify real-time garage capacity, and dispatch immediate Job Cards."
         breadcrumbs={[
-          { label: 'Workshop', path: '/appointments' },
+          { label: 'Dashboard', path: '/advisor-dashboard' },
           { label: 'Walk-in Service Desk' }
         ]}
         actions={
@@ -1325,15 +1325,12 @@ const WalkInService = () => {
                               {nextAvailableDateInfo && (
                                 <div className="p-3 bg-white border rounded mt-2">
                                   <div className="d-flex justify-content-between align-items-center mb-2">
-                                    <span className="fw-bold text-navy">Upcoming Slot Found:</span>
-                                    <Badge bg="success">{nextAvailableDateInfo.capacity} slots available</Badge>
+                                    <span className="fw-bold text-navy">Upcoming Bay Capacity:</span>
+                                    <Badge bg="success">{nextAvailableDateInfo.capacity} slots expected</Badge>
                                   </div>
-                                  <div className="small text-dark mb-2">
-                                    Date: <strong>{nextAvailableDateInfo.date}</strong> &bull; Time: <strong>{nextAvailableDateInfo.time}</strong>
+                                  <div className="small text-dark mb-0">
+                                    Next open workshop date is <strong>{nextAvailableDateInfo.date}</strong> &bull; <strong>{nextAvailableDateInfo.time}</strong>. For service today, please add the customer to the Waiting Queue.
                                   </div>
-                                  <Link to={`/appointments/book?date=${nextAvailableDateInfo.date}`} className="btn btn-sm btn-primary">
-                                    Book for {nextAvailableDateInfo.date} &rarr;
-                                  </Link>
                                 </div>
                               )}
                             </div>
@@ -1382,15 +1379,12 @@ const WalkInService = () => {
                               {nextAvailableDateInfo && (
                                 <div className="p-3 bg-white border rounded mt-2">
                                   <div className="d-flex justify-content-between align-items-center mb-2">
-                                    <span className="fw-bold text-navy">Upcoming Slot Found:</span>
-                                    <Badge bg="success">{nextAvailableDateInfo.capacity} slots available</Badge>
+                                    <span className="fw-bold text-navy">Upcoming Bay Capacity:</span>
+                                    <Badge bg="success">{nextAvailableDateInfo.capacity} slots expected</Badge>
                                   </div>
-                                  <div className="small text-dark mb-2">
-                                    Date: <strong>{nextAvailableDateInfo.date}</strong> &bull; Time: <strong>{nextAvailableDateInfo.time}</strong>
+                                  <div className="small text-dark mb-0">
+                                    Next open workshop date is <strong>{nextAvailableDateInfo.date}</strong> &bull; <strong>{nextAvailableDateInfo.time}</strong>. For service today, please add the customer to the Waiting Queue.
                                   </div>
-                                  <Link to={`/appointments/book?date=${nextAvailableDateInfo.date}`} className="btn btn-sm btn-primary">
-                                    Book for {nextAvailableDateInfo.date} &rarr;
-                                  </Link>
                                 </div>
                               )}
                             </div>

@@ -22,6 +22,7 @@ import VehicleRegistration from './pages/Vehicle/VehicleRegistration';
 import EditVehicle from './pages/Vehicle/EditVehicle';
 import VehicleDetails from './pages/Vehicle/VehicleDetails';
 import AdminDashboard from './pages/Dashboard/AdminDashboard';
+import AdvisorDashboard from './pages/Dashboard/AdvisorDashboard';
 import CustomerDashboard from './pages/Dashboard/CustomerDashboard';
 import MechanicDashboard from './pages/Dashboard/MechanicDashboard';
 import MyVehicles from './pages/Customer/MyVehicles';
@@ -80,7 +81,7 @@ const DashboardRedirect = () => {
   const { user } = useContext(AuthContext);
   if (!user) return <Navigate to="/login" replace />;
   if (user.role === 'admin') return <Navigate to="/admin-dashboard" replace />;
-  if (user.role === 'advisor') return <Navigate to="/admin-dashboard" replace />;
+  if (user.role === 'advisor') return <Navigate to="/advisor-dashboard" replace />;
   if (user.role === 'mechanic') return <Navigate to="/mechanic-dashboard" replace />;
   return <Navigate to="/customer-dashboard" replace />;
 };
@@ -132,63 +133,69 @@ function App() {
             <Route path="/insurance-receipt/:id" element={<InsuranceReceipt />} />
           </Route>
           
-          {/* Mechanic Protected Routes */}
+          {/* Mechanic & Staff Protected Routes */}
           <Route element={<ProtectedRoute allowedRoles={['mechanic', 'admin', 'advisor']} />}>
             <Route path="/mechanic-dashboard" element={<MechanicDashboard />} />
             <Route path="/mechanic-attendance" element={<MechanicAttendance />} />
             <Route path="/mechanic-jobs" element={<MechanicDashboard />} />
             <Route path="/mechanic-completed-jobs" element={<MechanicDashboard />} />
             <Route path="/mechanic-profile" element={<MechanicProfile />} />
+            <Route path="/profile" element={<MechanicProfile />} />
             <Route path="/my-payslips" element={<MyPayslips />} />
           </Route>
 
-          {/* Admin & Advisor Protected Routes */}
-          <Route element={<ProtectedRoute allowedRoles={['admin', 'advisor']} />}>
+          {/* Admin-Only Protected Routes */}
+          <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
             <Route path="/admin-dashboard" element={<AdminDashboard />} />
             
-            {/* Customer Routes */}
-            <Route path="/customers" element={<CustomerList />} />
-            <Route path="/customers/add" element={<AddCustomer />} />
-            <Route path="/customers/edit/:id" element={<EditCustomer />} />
-            <Route path="/customers/:id" element={<CustomerProfile />} />
-            
-            {/* Vehicle Routes */}
-            <Route path="/vehicles" element={<VehicleList />} />
-            <Route path="/vehicles/add" element={<VehicleRegistration />} />
-            <Route path="/vehicles/edit/:id" element={<EditVehicle />} />
- 
-            {/* Appointment Routes */}
-            <Route path="/appointments" element={<AppointmentList />} />
-            <Route path="/walk-in" element={<WalkInService />} />
-            <Route path="/waiting-queue" element={<WaitingQueue />} />
-            <Route path="/service-requests" element={<ServiceRequests />} />
-            <Route path="/admin/roadside-assistance" element={<AdminRoadsideRequests />} />
-            <Route path="/appointments/book" element={<BookAppointment />} />
-            <Route path="/appointments/edit/:id" element={<EditAppointment />} />
-            <Route path="/appointments/:id" element={<AppointmentDetails />} />
-
-            {/* Job Card Routes */}
-            <Route path="/job-cards" element={<JobCardList />} />
-            <Route path="/job-cards/add" element={<JobCardForm />} />
-            <Route path="/job-cards/edit/:id" element={<JobCardForm />} />
-
-            {/* Employee Management Routes */}
+            {/* Employee Management Routes - Admin Only */}
             <Route path="/employees" element={<EmployeeList />} />
             <Route path="/attendance" element={<AdminAttendance />} />
             <Route path="/admin-attendance" element={<AdminAttendance />} />
             <Route path="/salary" element={<SalaryManagement />} />
             <Route path="/payroll" element={<PayrollList />} />
 
-            {/* Inventory Routes */}
+            {/* Inventory Routes - Admin Only */}
             <Route path="/inventory" element={<InventoryList />} />
             <Route path="/parts-requests" element={<SparePartRequestsList />} />
 
-            {/* Billing Routes */}
-            <Route path="/billing" element={<BillingList />} />
-
-            {/* Sidebar Items */}
+            {/* Reports & System Settings - Admin Only */}
             <Route path="/reports" element={<ReportsDashboard />} />
             <Route path="/settings" element={<SettingsPage />} />
+
+            {/* Appointment Management Routes - Admin Only (Service Advisor is Walk-In Only) */}
+            <Route path="/appointments" element={<AppointmentList />} />
+            <Route path="/appointments/book" element={<BookAppointment />} />
+            <Route path="/appointments/edit/:id" element={<EditAppointment />} />
+            <Route path="/appointments/:id" element={<AppointmentDetails />} />
+            <Route path="/service-requests" element={<ServiceRequests />} />
+
+            {/* Roadside Assistance & Billing - Admin Only (Handled strictly by Admin) */}
+            <Route path="/admin/roadside-assistance" element={<AdminRoadsideRequests />} />
+            <Route path="/billing" element={<BillingList />} />
+
+            {/* Customer & Vehicle Management - Admin Only */}
+            <Route path="/customers" element={<CustomerList />} />
+            <Route path="/customers/add" element={<AddCustomer />} />
+            <Route path="/customers/edit/:id" element={<EditCustomer />} />
+            <Route path="/customers/:id" element={<CustomerProfile />} />
+            <Route path="/vehicles" element={<VehicleList />} />
+            <Route path="/vehicles/add" element={<VehicleRegistration />} />
+            <Route path="/vehicles/edit/:id" element={<EditVehicle />} />
+          </Route>
+
+          {/* Service Advisor & Admin Workshop Operations Protected Routes */}
+          <Route element={<ProtectedRoute allowedRoles={['advisor', 'admin']} />}>
+            <Route path="/advisor-dashboard" element={<AdvisorDashboard />} />
+ 
+            {/* Walk-in & Waiting Queue Routes (Service Advisor Primary, Admin Monitoring) */}
+            <Route path="/walk-in" element={<WalkInService />} />
+            <Route path="/waiting-queue" element={<WaitingQueue />} />
+
+            {/* Job Card Routes */}
+            <Route path="/job-cards" element={<JobCardList />} />
+            <Route path="/job-cards/add" element={<JobCardForm />} />
+            <Route path="/job-cards/edit/:id" element={<JobCardForm />} />
           </Route>
         </Route>
       </Routes>

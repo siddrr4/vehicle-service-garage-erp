@@ -35,7 +35,7 @@ const MechanicProfile = () => {
     <div className="container-fluid p-0">
       <div className="mb-4">
         <h2 className="fw-bold m-0 text-navy d-flex align-items-center gap-2">
-          <FaUserCircle /> Mechanic Profile
+          <FaUserCircle /> {user?.role === 'advisor' ? 'Service Advisor Profile' : (user?.role === 'mechanic' ? 'Mechanic Profile' : 'Staff Profile')}
         </h2>
         <p className="text-muted mb-0">Personal employee details and account status</p>
       </div>

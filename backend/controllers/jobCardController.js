@@ -8,6 +8,7 @@ import Vehicle from '../models/Vehicle.js';
 import Invoice from '../models/Invoice.js';
 import ServiceHistory from '../models/ServiceHistory.js';
 import Notification from '../models/Notification.js';
+import WaitingQueue from '../models/WaitingQueue.js';
 import { autoGenerateInvoice } from './billingController.js';
 import { getIndiaDateStr } from '../utils/dateUtils.js';
 import {
@@ -118,7 +119,34 @@ export const getJobCards = async (req, res) => {
       filterQuery.status = { $in: req.query.status.split(',') };
     }
 
-    const combinedQuery = { ...keyword, ...filterQuery };
+    // Role-based isolation: Service Advisor ONLY sees Job Cards created by Walk-in service
+    // Regular appointment job cards are kept only in Admin
+    if (req.user && req.user.role === 'advisor') {
+      const walkInAppointments = await Appointment.find({ bookingType: 'Walk-in' }).select('_id');
+      const walkInAptIds = walkInAppointments.map(a => a._id);
+      const waitingQueueRecords = await WaitingQueue.find({ jobCardRef: { $ne: null } }).select('jobCardRef');
+      const queueJobCardIds = waitingQueueRecords.map(w => w.jobCardRef);
+
+      filterQuery.$or = [
+        { serviceRequest: { $in: walkInAptIds } },
+        { _id: { $in: queueJobCardIds } }
+      ];
+    }
+
+    let combinedQuery = {};
+    if (keyword.$or && filterQuery.$or) {
+      combinedQuery = {
+        $and: [
+          { $or: keyword.$or },
+          { $or: filterQuery.$or }
+        ]
+      };
+      if (filterQuery.status) {
+        combinedQuery.status = filterQuery.status;
+      }
+    } else {
+      combinedQuery = { ...keyword, ...filterQuery };
+    }
 
     const count = await JobCard.countDocuments(combinedQuery);
 
@@ -294,6 +322,18 @@ export const getJobCardById = async (req, res) => {
           return res.status(403).json({ message: 'Not authorized to view this job card' });
         }
       }
+
+      // If user is a Service Advisor, they can only view Walk-In job cards
+      if (req.user && req.user.role === 'advisor') {
+        const isWalkIn = jobCard.serviceRequest?.bookingType === 'Walk-in' ||
+          (await WaitingQueue.exists({ jobCardRef: jobCard._id }));
+        if (!isWalkIn) {
+          return res.status(403).json({
+            message: 'Access denied: Service Advisors handle walk-in job cards only. Appointment job cards are managed by Admin.'
+          });
+        }
+      }
+
       res.json(jobCard);
     } else {
       res.status(404).json({ message: 'Job card not found' });
@@ -1021,6 +1061,17 @@ export const createWalkInJobCard = async (req, res) => {
       return res.status(404).json({ message: 'Vehicle not found' });
     }
 
+    // Duplicate prevention: check if vehicle already has an active Job Card
+    const existingActiveJob = await JobCard.findOne({
+      vehicle: vehicleId,
+      status: { $in: ['Pending', 'Assigned', 'In Progress', 'Waiting for Parts'] }
+    });
+    if (existingActiveJob) {
+      return res.status(400).json({
+        message: `Vehicle ${vehicle.vehicleNumber || vehicle.registrationNumber} already has an active Job Card (${existingActiveJob.jobNumber}) with status "${existingActiveJob.status}". Please complete or update the existing job card.`
+      });
+    }
+
     const todayStr = getIndiaDateStr();
 
     // Verify today's real capacity if a preferredTime slot is provided
@@ -1149,6 +1200,7 @@ export const createWalkInJobCard = async (req, res) => {
     });
 
     if (assignedMechanic) {
+      await Employee.findByIdAndUpdate(assignedMechanic, { availability: 'Busy' });
       await notifyMechanic(assignedMechanic, {
         type: 'MECHANIC_ASSIGNED',
         title: 'New Job Card Assigned',

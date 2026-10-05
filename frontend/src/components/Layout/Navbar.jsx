@@ -10,7 +10,8 @@ const Navbar = ({ toggleSidebar }) => {
   const location = useLocation();
 
   const getPageTitle = (pathname) => {
-    if (pathname.includes('/admin-dashboard')) return 'Admin & Service Advisor Console';
+    if (pathname.includes('/advisor-dashboard')) return 'Service Advisor Front-Desk Console';
+    if (pathname.includes('/admin-dashboard')) return 'Admin Management Console';
     if (pathname.includes('/customer-dashboard')) return 'Customer Service Portal';
     if (pathname.includes('/mechanic-dashboard')) return 'Workshop Mechanic Workbench';
     if (pathname.includes('/appointments/book')) return 'Book Appointment';
@@ -161,14 +162,16 @@ const Navbar = ({ toggleSidebar }) => {
               <small style={{ color: '#8E9891' }}>{user?.email}</small>
             </div>
             
-            <Dropdown.Item 
-              as={Link} 
-              to="/settings" 
-              className="d-flex align-items-center gap-2 py-2"
-              style={{ color: '#A7B0AA' }}
-            >
-              <FaCog style={{ color: '#D9A83E' }} /> Settings & Preferences
-            </Dropdown.Item>
+            {user?.role === 'admin' && (
+              <Dropdown.Item 
+                as={Link} 
+                to="/settings" 
+                className="d-flex align-items-center gap-2 py-2"
+                style={{ color: '#A7B0AA' }}
+              >
+                <FaCog style={{ color: '#D9A83E' }} /> Settings & Preferences
+              </Dropdown.Item>
+            )}
             
             <Dropdown.Divider style={{ borderColor: 'rgba(217, 168, 62, 0.15)' }} className="my-1" />
             

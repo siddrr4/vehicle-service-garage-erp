@@ -3,7 +3,9 @@ import {
   addToWaitlist, 
   getTodayWaitlist, 
   assignWaitlist, 
-  cancelWaitlist 
+  cancelWaitlist,
+  getWalkInOverview,
+  assignMechanicToWaitlist
 } from '../controllers/waitlistController.js';
 import { protect, adminOrAdvisor } from '../middleware/authMiddleware.js';
 
@@ -15,8 +17,14 @@ router.route('/')
 router.route('/today')
   .get(protect, adminOrAdvisor, getTodayWaitlist);
 
+router.route('/overview')
+  .get(protect, adminOrAdvisor, getWalkInOverview);
+
 router.route('/:id/assign')
   .put(protect, adminOrAdvisor, assignWaitlist);
+
+router.route('/:id/assign-mechanic')
+  .put(protect, adminOrAdvisor, assignMechanicToWaitlist);
 
 router.route('/:id/cancel')
   .put(protect, adminOrAdvisor, cancelWaitlist);

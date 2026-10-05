@@ -6,12 +6,12 @@ import {
   updateCustomer,
   deleteCustomer,
 } from '../controllers/customerController.js';
-import { protect, admin } from '../middleware/authMiddleware.js';
+import { protect, admin, adminOrAdvisor } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
 router.route('/')
-  .get(protect, admin, getCustomers)
+  .get(protect, adminOrAdvisor, getCustomers)
   .post(protect, createCustomer);
 
 router.route('/:id')

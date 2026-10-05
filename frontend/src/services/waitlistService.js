@@ -11,8 +11,18 @@ const waitlistService = {
     return response.data;
   },
 
+  getWalkInOverview: async () => {
+    const response = await api.get('/waitlist/overview');
+    return response.data;
+  },
+
   assignWaitlist: async (id, data) => {
     const response = await api.put(`/waitlist/${id}/assign`, data);
+    return response.data;
+  },
+
+  assignMechanic: async (id, assignedMechanic) => {
+    const response = await api.put(`/waitlist/${id}/assign-mechanic`, { assignedMechanic });
     return response.data;
   },
 

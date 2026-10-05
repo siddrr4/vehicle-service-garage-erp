@@ -9,13 +9,13 @@ import {
   getPaymentAnalytics,
   getCustomerVehicleAnalytics
 } from '../controllers/reportsController.js';
-import { protect, adminOrAdvisor } from '../middleware/authMiddleware.js';
+import { protect, admin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
 // Apply auth middleware to all routes in this file
 router.use(protect);
-router.use(adminOrAdvisor);
+router.use(admin);
 
 router.get('/summary', getSummary);
 router.get('/revenue', getRevenueAnalytics);

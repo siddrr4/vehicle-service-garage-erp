@@ -9,22 +9,22 @@ import {
   getDuplicateSalaryStructures,
   cleanupSalaryDuplicatesHandler,
 } from '../controllers/salaryController.js';
-import { protect, admin, adminOrAdvisor } from '../middleware/authMiddleware.js';
+import { protect, admin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
 router.route('/')
-  .get(protect, adminOrAdvisor, getSalaryStructures)
+  .get(protect, admin, getSalaryStructures)
   .post(protect, admin, createSalaryStructure);
 
 router.route('/duplicates')
-  .get(protect, adminOrAdvisor, getDuplicateSalaryStructures);
+  .get(protect, admin, getDuplicateSalaryStructures);
 
 router.route('/cleanup-duplicates')
   .post(protect, admin, cleanupSalaryDuplicatesHandler);
 
 router.route('/employee/:employeeId')
-  .get(protect, adminOrAdvisor, getSalaryStructureByEmployee);
+  .get(protect, admin, getSalaryStructureByEmployee);
 
 router.route('/:id')
   .put(protect, admin, updateSalaryStructure)

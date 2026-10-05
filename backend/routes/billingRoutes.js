@@ -10,18 +10,19 @@ import {
   createPaymentOrder,
   verifyPayment
 } from '../controllers/billingController.js';
-import { protect, adminOrAdvisor } from '../middleware/authMiddleware.js';
+import { protect, admin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
+// Billing & invoices handled strictly by Admin, not Service Advisor
 router.route('/')
-  .get(protect, adminOrAdvisor, getInvoices);
+  .get(protect, admin, getInvoices);
 
 router.route('/config')
   .get(protect, getBillingConfig);
 
 router.route('/generate')
-  .post(protect, adminOrAdvisor, generateInvoice);
+  .post(protect, admin, generateInvoice);
 
 router.route('/my-invoices')
   .get(protect, getMyInvoices);
@@ -33,7 +34,7 @@ router.route('/:id')
   .get(protect, getInvoiceById);
 
 router.route('/:id/pay')
-  .post(protect, adminOrAdvisor, recordPayment);
+  .post(protect, admin, recordPayment);
 
 router.route('/:id/create-payment-order')
   .post(protect, createPaymentOrder);

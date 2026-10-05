@@ -10,7 +10,7 @@ import {
   dispatchVehiclePickup,
   updatePickupStatus
 } from '../controllers/roadsideController.js';
-import { protect, adminOrAdvisor } from '../middleware/authMiddleware.js';
+import { protect, admin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
@@ -21,12 +21,12 @@ router.get('/config', getRoadsideConfig);
 router.post('/', protect, createRoadsideRequest);
 router.get('/my-requests', protect, getMyRoadsideRequests);
 
-// Admin & Advisor endpoints
-router.get('/', protect, adminOrAdvisor, getAllRoadsideRequests);
+// Admin endpoints (Roadside handled strictly by Admin, not Service Advisor)
+router.get('/', protect, admin, getAllRoadsideRequests);
 router.get('/:id', protect, getRoadsideRequestById);
-router.put('/:id/status', protect, adminOrAdvisor, updateRoadsideStatus);
-router.put('/:id/on-site-repair', protect, adminOrAdvisor, recordOnSiteRepair);
-router.put('/:id/pickup-dispatch', protect, adminOrAdvisor, dispatchVehiclePickup);
-router.put('/:id/pickup-status', protect, adminOrAdvisor, updatePickupStatus);
+router.put('/:id/status', protect, admin, updateRoadsideStatus);
+router.put('/:id/on-site-repair', protect, admin, recordOnSiteRepair);
+router.put('/:id/pickup-dispatch', protect, admin, dispatchVehiclePickup);
+router.put('/:id/pickup-status', protect, admin, updatePickupStatus);
 
 export default router;

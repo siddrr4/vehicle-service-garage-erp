@@ -7,6 +7,7 @@ import api from '../../services/api';
 import appointmentService from '../../services/appointmentService';
 import waitlistService from '../../services/waitlistService';
 import * as customerService from '../../services/customerService';
+import employeeService from '../../services/employeeService';
 import { getIndiaDateStr } from '../../utils/dateUtils';
 
 const WalkInModal = ({ show, onHide, onSuccess }) => {
@@ -52,11 +53,18 @@ const WalkInModal = ({ show, onHide, onSuccess }) => {
   const [nextSlotInfo, setNextSlotInfo] = useState(null);
   const [recommendedSlotInfo, setRecommendedSlotInfo] = useState(null);
   const [showAllSlots, setShowAllSlots] = useState(false);
+  const [activeMechanics, setActiveMechanics] = useState([]);
+  const [selectedMechanic, setSelectedMechanic] = useState('');
 
   useEffect(() => {
     if (show) {
       resetForm();
       fetchTodaySlots(todayStr);
+      employeeService.getActiveMechanics().then(data => {
+        setActiveMechanics(Array.isArray(data) ? data : []);
+      }).catch(() => {
+        setActiveMechanics([]);
+      });
     }
   }, [show]);
 
@@ -97,6 +105,7 @@ const WalkInModal = ({ show, onHide, onSuccess }) => {
     setProblemDescription('Walk-in Service Request');
     setPreferredDate(todayStr);
     setPreferredTime('');
+    setSelectedMechanic('');
   };
 
   const fetchTodaySlots = async (date) => {
@@ -223,6 +232,7 @@ const WalkInModal = ({ show, onHide, onSuccess }) => {
         appointmentDate: preferredDate,
         preferredTime,
         problemDescription,
+        assignedMechanic: selectedMechanic || undefined,
         bookingType: 'Walk-in',
         status: 'Checked-In'
       });
@@ -252,7 +262,8 @@ const WalkInModal = ({ show, onHide, onSuccess }) => {
         vehicle: selectedVehicle,
         serviceType,
         problemDescription,
-        priority: 'Medium'
+        priority: 'Medium',
+        assignedMechanic: selectedMechanic || undefined
       });
       toast.info('Added to Waiting Queue');
       if (onSuccess) onSuccess();
@@ -722,6 +733,25 @@ const WalkInModal = ({ show, onHide, onSuccess }) => {
                   onChange={e => setProblemDescription(e.target.value)} 
                   required 
                 />
+              </Col>
+
+              <Col md={12}>
+                <Form.Group className="mb-3">
+                  <Form.Label className="fw-semibold">
+                    Assign Available Mechanic <span className="text-muted small fw-normal">(Optional — can assign or change later)</span>
+                  </Form.Label>
+                  <Form.Select
+                    value={selectedMechanic}
+                    onChange={e => setSelectedMechanic(e.target.value)}
+                  >
+                    <option value="">-- No Mechanic Assigned Yet (Assign from Queue / Job Card) --</option>
+                    {activeMechanics.map((mech) => (
+                      <option key={mech._id} value={mech._id}>
+                        {mech.fullName} ({mech.specialization || 'Mechanic'}) &bull; Status: {mech.availability || 'Available'}
+                      </option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
               </Col>
             </Row>
 

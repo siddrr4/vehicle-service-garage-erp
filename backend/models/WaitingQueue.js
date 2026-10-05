@@ -35,7 +35,7 @@ const waitingQueueSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['Waiting', 'Slot Available', 'Assigned', 'Cancelled'],
+    enum: ['Waiting', 'Slot Available', 'Assigned', 'Cancelled', 'Completed'],
     default: 'Waiting'
   },
   assignedMechanic: {
@@ -51,13 +51,18 @@ const waitingQueueSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Appointment',
     required: false
+  },
+  jobCardRef: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'JobCard',
+    required: false
   }
 }, {
   timestamps: true
 });
 
 // Auto-generate queue number
-waitingQueueSchema.pre('validate', async function(next) {
+waitingQueueSchema.pre('validate', async function() {
   if (!this.queueNumber) {
     const today = new Date();
     const dateStr = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
@@ -78,12 +83,9 @@ waitingQueueSchema.pre('validate', async function(next) {
       }
       
       this.queueNumber = `WQ-${dateStr}-${String(nextNum).padStart(3, '0')}`;
-      next();
     } catch (err) {
-      next(err);
+      throw err;
     }
-  } else {
-    next();
   }
 });
 

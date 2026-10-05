@@ -6,7 +6,7 @@ import {
   updatePaymentStatus,
   getMyPayslips,
 } from '../controllers/payrollController.js';
-import { protect, admin, adminOrAdvisor } from '../middleware/authMiddleware.js';
+import { protect, admin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
@@ -17,7 +17,7 @@ router.route('/generate')
   .post(protect, admin, generateMonthlyPayroll);
 
 router.route('/')
-  .get(protect, adminOrAdvisor, getPayrolls);
+  .get(protect, admin, getPayrolls);
 
 router.route('/:id')
   .get(protect, getPayrollById);

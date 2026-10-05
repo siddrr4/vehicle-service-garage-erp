@@ -20,11 +20,11 @@ router.route('/stats')
 
 router.route('/')
   .get(protect, getSpareParts)
-  .post(protect, restrictTo('admin', 'advisor'), createSparePart);
+  .post(protect, restrictTo('admin'), createSparePart);
 
 router.route('/:id')
   .get(protect, getSparePartById)
-  .put(protect, restrictTo('admin', 'advisor'), updateSparePart)
-  .delete(protect, restrictTo('admin', 'advisor'), deleteSparePart);
+  .put(protect, restrictTo('admin'), updateSparePart)
+  .delete(protect, restrictTo('admin'), deleteSparePart);
 
 export default router;

@@ -11,10 +11,11 @@ import { AuthContext } from '../../context/AuthContext';
 const Sidebar = ({ isOpen, toggleSidebar }) => {
   const { user, logout } = useContext(AuthContext);
 
-  const isAdmin = user?.role === 'admin' || user?.role === 'advisor';
+  const isAdmin = user?.role === 'admin';
+  const isAdvisor = user?.role === 'advisor';
   const isMechanic = user?.role === 'mechanic';
 
-  // Admin & Advisor navigation grouped into standard enterprise sections
+  // Admin navigation grouped into standard enterprise sections
   const adminSections = [
     {
       category: 'DASHBOARD',
@@ -72,6 +73,38 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       items: [
         { name: 'Notifications', path: '/notifications', icon: <FaBell /> },
         { name: 'Settings', path: '/settings', icon: <FaCog /> }
+      ]
+    }
+  ];
+
+  // Service Advisor operational navigation (Walk-in & front-desk; Attendance, Payslips & Profile)
+  const advisorSections = [
+    {
+      category: 'OPERATIONS',
+      items: [
+        { name: 'Advisor Console', path: '/advisor-dashboard', icon: <FaHome /> }
+      ]
+    },
+    {
+      category: 'WORKSHOP FRONT-DESK',
+      items: [
+        { name: 'Walk-in Service', path: '/walk-in', icon: <FaWalking /> },
+        { name: 'Waiting Queue', path: '/waiting-queue', icon: <FaUserClock /> },
+        { name: 'Job Cards', path: '/job-cards', icon: <FaWrench /> }
+      ]
+    },
+    {
+      category: 'ATTENDANCE & PAYROLL',
+      items: [
+        { name: 'Attendance', path: '/mechanic-attendance', icon: <FaUserClock /> },
+        { name: 'My Payslips', path: '/my-payslips', icon: <FaReceipt /> }
+      ]
+    },
+    {
+      category: 'SYSTEM',
+      items: [
+        { name: 'Profile', path: '/profile', icon: <FaUserCircle /> },
+        { name: 'Notifications', path: '/notifications', icon: <FaBell /> }
       ]
     }
   ];
@@ -140,6 +173,9 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   if (isAdmin) {
     sections = adminSections;
     dashboardPath = '/admin-dashboard';
+  } else if (isAdvisor) {
+    sections = advisorSections;
+    dashboardPath = '/advisor-dashboard';
   } else if (isMechanic) {
     sections = mechanicSections;
     dashboardPath = '/mechanic-dashboard';

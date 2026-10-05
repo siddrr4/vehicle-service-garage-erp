@@ -1,12 +1,12 @@
 import express from 'express';
 import { getSettings, updateSettings, getPublicSettings } from '../controllers/settingsController.js';
-import { protect, adminOrAdvisor } from '../middleware/authMiddleware.js';
+import { protect, admin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
 router.route('/')
-  .get(protect, adminOrAdvisor, getSettings)
-  .put(protect, adminOrAdvisor, updateSettings);
+  .get(protect, admin, getSettings)
+  .put(protect, admin, updateSettings);
 
 router.route('/public')
   .get(protect, getPublicSettings);
